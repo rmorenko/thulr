@@ -136,6 +136,13 @@ elsewhere and each is defended by a number.
 - **`domains.py`** — the analysis side rather than the search side: what
   a repository is made of and what crosses its own package lines, from
   the vectors and the commit history already indexed.
+- **`manifests.py`** — what a repository's build files declare it is and
+  needs. The only edge in the store that is a statement by its authors
+  rather than an inference about their code, which is what tells a name
+  two repositories share from a dependency they have.
+- **`deps.py`** — the manifest graph against the name graph. Agreement is
+  silence; the report is where they differ — code reaching into a
+  repository nothing declares, or a declared dependency no name touches.
 - **`dupes.py`** — the same code in two places, found by token shingles
   rather than by meaning (vectors were measured against it and lost).
   Pairs are collapsed by the directories they connect, because most

@@ -45,6 +45,7 @@ uv run wsindex refs 8080                 # everything that names this port
 uv run wsindex status                    # what is configured, and what the index holds
 uv run wsindex explain src/thing.tf      # why a file is (or is not) searchable
 uv run wsindex domains                   # what it is made of, and what is tangled
+uv run wsindex deps                      # which repos depend on which, declared or not
 ```
 
 Real output on this very repository:

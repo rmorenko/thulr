@@ -6,8 +6,14 @@ from typing import Annotated
 
 import typer
 
-from wsindex.cli.composition import build_pipeline, config_or_default, require_config_file
+from wsindex.cli.composition import (
+    build_links,
+    build_pipeline,
+    config_or_default,
+    require_config_file,
+)
 from wsindex.config import Backend, Config, LinksBackend, Provider, Repository, RepoSource
+from wsindex.deps import analyse
 from wsindex.ingest import SKIP_REASONS
 from wsindex.ingest.git_state import STATE_FILE, IndexState
 from wsindex.paths import user_config_file, workspace_config_path
@@ -436,3 +442,54 @@ def dupes(
                 f"    {pair.overlap:.2f}  {pair.left}:{pair.left_lines[0]}"
                 f"  <->  {pair.right}:{pair.right_lines[0]}"
             )
+
+
+def deps(
+    limit: Annotated[int, typer.Option("--limit", help="How many pairs to print")] = 15,
+) -> None:
+    """Which repositories depend on which, by manifest and by code.
+
+    Two graphs over one workspace. The build files declare one; the code
+    draws another, from names defined in one repository and used in
+    another. Where they agree there is nothing to say. Where they differ
+    there is a question:
+
+    **Undeclared** — code uses another repository's names and no manifest
+    says so. Sometimes a real build problem. Sometimes two repositories
+    sharing a vocabulary because one is a fork of the other, or because
+    an organisation names things the same way everywhere. Measured, that
+    second case is most of it on a workspace of sibling projects and
+    almost none of it on a real dependency tree, which is why this prints
+    the names and leaves the verdict to a reader.
+
+    **Unused** — a dependency is declared and not one of its names
+    appears. Dead weight in the manifest, or a dependency used through
+    something no name can see: a plugin registry, reflection, a
+    subprocess.
+
+    Needs an index run first, and manifests it understands: go.mod,
+    package.json, Cargo.toml, pyproject.toml, csproj, Gemfile, gemspec,
+    pom.xml.
+    """
+    config = config_or_default()
+    require_config_file(config)
+    with build_links(config) as links:
+        report = analyse(links)
+    if not report.packages:
+        typer.echo(
+            "no manifests recognised — nothing declares a package name here, "
+            "so there is no dependency graph to compare against",
+            err=True,
+        )
+    typer.echo(f"{len(report.used)} repo pairs share names, {report.packages} packages declared")
+    if report.undeclared:
+        typer.echo("\nused but not declared:")
+        for link in report.undeclared[:limit]:
+            typer.echo(f"  {link.user} -> {link.owner}  ({link.names} names)")
+            typer.echo(f"      {', '.join(link.examples)}")
+    if report.unused:
+        typer.echo("\ndeclared but no name of it appears:")
+        for user, owner in report.unused[:limit]:
+            typer.echo(f"  {user} -> {owner}")
+    if not report.undeclared and not report.unused:
+        typer.echo("\nthe manifests and the code agree")

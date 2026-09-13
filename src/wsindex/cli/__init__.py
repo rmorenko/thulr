@@ -33,6 +33,7 @@ from wsindex.cli.interfaces import mcp, serve, shell
 from wsindex.cli.searching import refs, search, why
 from wsindex.cli.workspace import (
     add_repo,
+    deps,
     domains,
     dupes,
     explain,
@@ -74,6 +75,7 @@ for command in (
     explain,
     domains,
     dupes,
+    deps,
     stats,
     index,
     search,

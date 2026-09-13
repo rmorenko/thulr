@@ -843,6 +843,30 @@ class LinkStore:
             if row[0]
         }
 
+    def every(self, kinds: Sequence[LinkKind]) -> list[tuple[LinkKind, str, str | None, str]]:
+        """Every link of these kinds, as bare tuples.
+
+        Deliberately not `Edge`: the callers that want this want to
+        build an index over hundreds of thousands of rows, and paying
+        for a frozen dataclass per row to read four of its fields is
+        the kind of cost that only shows up on a real workspace. `refs`
+        wants edges; `deps` wants a join.
+
+        Args:
+            kinds: Which kinds to read.
+
+        Returns:
+            `(kind, name, norm, repo)` per link, unordered.
+        """
+        if not kinds:
+            return []
+        placeholders = ", ".join("?" for _ in kinds)
+        rows = self._db.execute(
+            self._sql(f"SELECT kind, name, norm, repo FROM links WHERE kind IN ({placeholders})"),
+            tuple(kind.value for kind in kinds),
+        ).fetchall()
+        return [(LinkKind(kind), name, norm, repo) for kind, name, norm, repo in rows]
+
     def dangling(self) -> list[Edge]:
         """Every `READS_KEY` that no `DECLARES` answers.
 
