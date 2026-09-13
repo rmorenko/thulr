@@ -355,8 +355,17 @@ class Pipeline:
         # here: the index covers the whole table and rebuilding it per
         # batch would make a run quadratic in batches. A store without a
         # lexical arm makes this a no-op.
+        #
+        # Only when something was written, and that is not an
+        # optimisation. Rebuilding a BM25 index re-segments it, and a
+        # re-segmented index breaks ties in a different order — so a run
+        # that changed nothing changed the answers. Measured on an
+        # 11 786-file workspace, where the number of ties makes it
+        # visible; `for-agents.md` promises an agent replaying its own
+        # run gets its own answers, and this is what kept that promise
+        # from being true.
         refresh = getattr(self.store, "refresh_text_index", None)
-        if refresh is not None:
+        if refresh is not None and tally.chunks:
             refresh()
         log.info(
             "index finished in %.2fs: %d files, %d chunks",
