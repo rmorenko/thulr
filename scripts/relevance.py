@@ -199,8 +199,58 @@ def materialise(org: str, repos: list[Repo]) -> Path:
 
 def control(root: Path, rg_query: str, truth: str) -> tuple[str, int]:
     """The same question put to ripgrep, exactly as the tester recorded it."""
-    if RG is None:
+    files = control_files(root, rg_query)
+    if files is None:
         return "no ripgrep", 0
+    if truth not in files:
+        return "missed", len(files)
+    return ("found" if len(files) <= DROWNED_AT else "drowned"), len(files)
+
+
+def control_matches(root: Path, term: str) -> dict[str, list[int]] | None:
+    """Where ripgrep matches one term: path -> the lines it matched on.
+
+    Lines, not just paths, so a harness can charge a reader for what
+    they would look at rather than for opening whole files. Tier 3
+    needed it and charging whole files instead reported a 400-fold
+    advantage that was an artefact of the accounting.
+
+    Returns:
+        Matches per file, in ripgrep's own order, or None without it.
+    """
+    if RG is None:
+        return None
+    done = subprocess.run(
+        ["rg", "-n", "-i", "-F", term, "."],
+        executable=RG,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        timeout=180,
+    )
+    found: dict[str, list[int]] = {}
+    for line in done.stdout.splitlines():
+        path, _, rest = line.partition(":")
+        number, _, _ = rest.partition(":")
+        if not number.isdigit():
+            continue
+        found.setdefault(path.strip().removeprefix("./"), []).append(int(number))
+    return found
+
+
+def control_files(root: Path, rg_query: str) -> list[str] | None:
+    """What ripgrep names, in the order it names them.
+
+    Split out of `control` so a harness that needs the *list* — tier 3
+    reads those files and counts what that costs — does not reimplement
+    the two subtleties below and get one of them wrong.
+
+    Returns:
+        Repo-relative paths, or None when there is no ripgrep to ask.
+    """
+    if RG is None:
+        return None
     argv = shlex.split(rg_query)
     if argv and argv[0] == "rg":
         argv = argv[1:]
@@ -222,10 +272,7 @@ def control(root: Path, rg_query: str, truth: str) -> tuple[str, int]:
         stdin=subprocess.DEVNULL,
         timeout=120,
     )
-    files = [line.strip().removeprefix("./") for line in done.stdout.splitlines() if line.strip()]
-    if truth not in files:
-        return "missed", len(files)
-    return ("found" if len(files) <= DROWNED_AT else "drowned"), len(files)
+    return [line.strip().removeprefix("./") for line in done.stdout.splitlines() if line.strip()]
 
 
 _STOP = {
