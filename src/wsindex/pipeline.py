@@ -44,7 +44,8 @@ from wsindex.ingest import (
 )
 from wsindex.ingest.commits import blame_links, blame_map, commit_chunks, read_commits
 from wsindex.ingest.link_extract import links_for
-from wsindex.links import Edge, LinkKind, LinkStore
+from wsindex.ingest.manifests import read_manifests
+from wsindex.links import Edge, Link, LinkKind, LinkStore
 from wsindex.model import Chunk, Hit, Kind, SearchFilter, SourceFile
 from wsindex.rank.reranker import Reranker
 from wsindex.run import (
@@ -325,6 +326,7 @@ class Pipeline:
                 # run skip those same changes forever.
                 state = state.with_commit(repo.id, diff.head, markup=repo.markup_key)
                 state.save(self.state_dir)
+            self._manifest_links(repo, root=root)
         self._prune_links(defined_before)
         # Once, after every repo, for the same reason the link prune is
         # here: the index covers the whole table and rebuilding it per
@@ -340,6 +342,34 @@ class Pipeline:
             tally.chunks,
         )
         return tally.report(seconds=round(time.monotonic() - started, 2))
+
+    def _manifest_links(self, repo: Repository, *, root: Path) -> None:
+        """Record what a repository publishes itself as and what it needs.
+
+        Anchored to a synthetic source id rather than to a chunk,
+        because these are facts about a *repository* and no chunk owns
+        them — `go.mod` is not even indexed, the walker registers no
+        `.mod` suffix. The id is stable per repo, so the delete below is
+        the whole lifetime rule: a run replaces what the last one said.
+
+        Args:
+            repo: The repository being indexed.
+            root: Its working tree.
+        """
+        if self.links is None:
+            return
+        source = f"manifest:{repo.id}"
+        self.links.delete_by_source([source])
+        found = read_manifests(root)
+        entries = [(LinkKind.PROVIDES, name) for name in sorted(found.provides)]
+        entries += [(LinkKind.DEPENDS_ON, name) for name in sorted(found.depends)]
+        if not entries:
+            return
+        self.links.add_links(
+            [Link(src_chunk_id=source, kind=kind, name=name, line=1) for kind, name in entries],
+            repo=repo.id,
+            path="(manifest)",
+        )
 
     def _prune_links(self, defined_before: set[str]) -> None:
         """Drop mentions nothing defines, and say so if that cost anything.

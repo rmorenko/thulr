@@ -150,7 +150,7 @@ def normalised(name: str) -> str:
 class LinkKind(StrEnum):
     """What one link asserts.
 
-    Six, and they are not equally useful — measured on the pinned corpus
+    Eight, and they are not equally useful — measured on the pinned corpus
     rather than assumed. In a 569-file infrastructure workspace:
     `BLAMED_BY` 15 086 edges, `REFERENCES` 1 384, `READS_KEY` 170 and
     **`DECLARES` 9**. Since `refs` answers only where a name has both a
@@ -190,6 +190,17 @@ class LinkKind(StrEnum):
     the config pair does. Deliberately *not* a call graph — a name in a
     comment counts, which is a feature for search and would be a lie in
     a call graph."""
+
+    PROVIDES = "provides"
+    """A repository's build files publish it under this name. One per
+    repository usually; a monorepo of packages has several."""
+
+    DEPENDS_ON = "depends_on"
+    """A repository's build files declare it needs this name. The only
+    edge here that is a statement by the people who wrote the code
+    rather than an inference about it, which is what makes it able to
+    tell a shared name from a shared dependency — see
+    `ingest.manifests`."""
 
     REFERENCES = "references"
     """A commit message or document points at something outside the
@@ -267,6 +278,8 @@ KIND_LABELS: dict[LinkKind, str] = {
     LinkKind.DECLARES: "declared by",
     LinkKind.DEFINES: "defined in",
     LinkKind.MENTIONS: "named in",
+    LinkKind.PROVIDES: "published by",
+    LinkKind.DEPENDS_ON: "depended on by",
     LinkKind.REFERENCES: "mentioned in",
     LinkKind.BLAMED_BY: "wrote",
 }
