@@ -14,8 +14,8 @@ sends.
 **And the part a security reviewer is usually not told.** Staying at the
 default costs quality, and the amount is measured. On 154 questions
 harvested from the indexed projects' own issue trackers, the fully local
-default finds the right file in the top ten 55 times; `ripgrep` finds it
-60\. That is a tie with grep. Turning on a hosted *reranker* — which
+default finds the right file in the top ten 65 times; `ripgrep` finds it
+60\. That is a tie with grep, inside noise. Turning on a hosted *reranker* — which
 sends the query and about forty candidate chunks per search, never the
 corpus — takes it to 85. Replacing the embedder as well, which does send
 every chunk once, takes it to 109.
@@ -23,16 +23,17 @@ every chunk once, takes it to 109.
 So the decision in front of you is not "secure or insecure". It is which
 of four postures to buy, and three of them are defensible:
 
-| Posture                    | Finds it (of 154) | What leaves        |
-| -------------------------- | ----------------: | ------------------ |
-| Local only                 |                55 | Nothing            |
-| Local, hybrid retrieval on |                64 | Nothing            |
-| Hosted reranker            |                85 | Query + ~40 chunks |
-| Hosted embedder as well    |               109 | Every chunk, once  |
+| Posture                 | Finds it (of 154) | What leaves        |
+| ----------------------- | ----------------: | ------------------ |
+| The default, hybrid on  |                65 | Nothing            |
+| Hybrid turned off       |                55 | Nothing            |
+| Hosted reranker         |                85 | Query + ~40 chunks |
+| Hosted embedder as well |               109 | Every chunk, once  |
 
-The second row is free and sends nothing; if your answer is "nothing
-leaves, full stop", that is the row to standardise on rather than the
-first. The third is the one most organisations should argue about.
+The first row is the default and sends nothing — fusing a lexical pass
+with the vector one is what took it to 65 from the 55 below it, and the
+second row exists only for somebody who wants exactly the old ranking.
+The third is the one most organisations should argue about.
 
 ## What opens a socket, and when
 

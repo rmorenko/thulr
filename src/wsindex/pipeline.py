@@ -171,9 +171,10 @@ def _fuse(*arms: list[Hit]) -> list[Hit]:
             merged across datasets.
 
     Returns:
-        Every chunk any arm found, best fused score first.
+        Every chunk any arm found, best fused rank first, each carrying
+        the score retrieval gave it.
     """
-    scores: dict[tuple[str, str], float] = {}
+    ranked: dict[tuple[str, str], float] = {}
     seen: dict[tuple[str, str], Hit] = {}
     for arm in arms:
         for rank, hit in enumerate(arm, start=1):
@@ -184,10 +185,14 @@ def _fuse(*arms: list[Hit]) -> list[Hit]:
             # one. Found by a test that counted what the reranker was
             # given and got five where twelve were due.
             key = (str(hit.metadata.get("repo", "")), str(hit.native_id))
-            scores[key] = scores.get(key, 0.0) + 1.0 / (RRF_K + rank)
+            ranked[key] = ranked.get(key, 0.0) + 1.0 / (RRF_K + rank)
             seen.setdefault(key, hit)
-    ordered = sorted(scores, key=lambda key: scores[key], reverse=True)
-    return [replace(seen[key], score=scores[key]) for key in ordered]
+    # Ordered by the fused rank, scored by what retrieval said. A rank
+    # score is 0.016 for everything and would replace a similarity a
+    # person can read with a number that is the same in every row — and
+    # would make "an exact match scores 1.0" false everywhere it is
+    # written down.
+    return [seen[key] for key in sorted(ranked, key=lambda key: ranked[key], reverse=True)]
 
 
 log = logging.getLogger(__name__)
@@ -803,7 +808,8 @@ class Pipeline:
                         dataset_name=r.id, query=query, k=k * FUSION_DEPTH, filters=filters
                     )
                 )
-        if hybrid and lexical:
+        fused = bool(hybrid and lexical)
+        if fused:
             # Each arm is ordered within itself first, because fusion
             # reads ranks: cosine is comparable across datasets (one
             # space) and so is BM25 (one index), so each list is
@@ -817,10 +823,19 @@ class Pipeline:
             # cutting on the store's own score keeps the funnel's premise
             # intact — retrieval proposes, re-ranking disposes — while
             # bounding the expensive half. See `RERANK_BUDGET`.
-            candidates = sorted(all_hits, key=lambda h: h.score, reverse=True)[: k * RERANK_BUDGET]
+            # Already in the order that matters when fused, and sorting
+            # by score here would undo it: the score is a cosine again,
+            # so this cut would hand the reranker the vector arm's top
+            # candidates and throw the lexical half away before fusion
+            # ever reached it. Measured when it did — top-three fell from
+            # 50 to 32.
+            ranked_first = (
+                all_hits if fused else sorted(all_hits, key=lambda h: h.score, reverse=True)
+            )
+            candidates = ranked_first[: k * RERANK_BUDGET]
             scores = self.reranker.rank(query, [hit.text for hit in candidates])
             scored = [replace(h, score=s) for h, s in zip(candidates, scores, strict=True)]
-            if hybrid:
+            if fused:
                 # A voter, not a dictator. Overwriting the score throws
                 # the retrieval order away and keeps only the candidate
                 # set, and measured that is a bad trade: of 29 questions
@@ -833,7 +848,10 @@ class Pipeline:
                 all_hits = _fuse(candidates, sorted(scored, key=lambda h: h.score, reverse=True))
             else:
                 all_hits = scored
-        best = _within_quota(sorted(all_hits, key=lambda h: h.score, reverse=True), k=k)
+        # Not re-sorted when fused: the order *is* the fusion, and
+        # sorting by score would put the vector arm back in charge.
+        ordered = all_hits if fused else sorted(all_hits, key=lambda h: h.score, reverse=True)
+        best = _within_quota(ordered, k=k)
         if self.stats is not None:
             # After the answer is computed, and unable to affect it: a
             # note about a question must not be able to break answering

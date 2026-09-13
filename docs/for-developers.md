@@ -16,19 +16,20 @@ sockets. There is no account and no server to run.
 you install anything.** On 154 questions taken from the issue trackers of
 the projects being indexed — real questions, in the words of people who
 had never heard of this tool — the fully local default puts the right
-file in the top ten 55 times. `ripgrep` manages 60. That is a tie with
-grep, and nobody should install a tool to tie with grep.
+file in the top ten 65 times. `ripgrep` manages 60. That is a tie with
+grep — inside noise — and nobody installs a tool to tie with grep.
 
 What changes it:
 
 | What you turn on      | Finds it (of 154) | What leaves your machine |
 | --------------------- | ----------------: | ------------------------ |
-| nothing — the default |                55 | nothing                  |
-| hybrid retrieval      |                64 | nothing                  |
+| nothing — the default |                65 | nothing                  |
+| hybrid turned off     |                55 | nothing                  |
 | a hosted reranker     |                85 | the query and ~40 chunks |
 | a hosted embedder too |               109 | every chunk, once        |
 
-Hybrid retrieval is free, local, and one line of config. The hosted
+Fusing a lexical pass with the vector one is what took the default to 65
+from the 55 it used to manage; it is free, local and on. The hosted
 reranker sends the query and about forty candidate chunks per search —
 not your repository — and it is the line where this stops tying with grep
 and starts beating it 85 to 60.

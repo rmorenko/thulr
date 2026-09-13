@@ -225,20 +225,21 @@ comfortable. On the 154 that remain, paired, McNemar exact:
 
 | Configuration             | hit@3 | hit@10 |
 | ------------------------- | ----: | -----: |
-| default, local only       |    29 |     55 |
-| + hybrid retrieval        |    45 |     64 |
+| default — hybrid on       |    47 |     65 |
+| hybrid turned off         |    29 |     55 |
 | + a hosted reranker       |    50 |     85 |
 | a hosted embedder as well |    61 |    109 |
 | `ripgrep`                 |    60 |     60 |
 
-The default ties ripgrep (55 against 60, p = 0.60) and the two find
-*different* questions — 27 only wsindex, 32 only ripgrep. Hybrid
-retrieval is free and local and worth sixteen at the top. A hosted
-reranker beats ripgrep 85 to 60 (p = 0.0008) while sending the query and
-about forty chunks rather than the corpus.
+The default ties ripgrep (65 against 60, p = 0.57) and the two find
+*different* questions. Fusing a lexical pass with the vector one is what
+took it there from 55 — free, local, on — and it nearly doubles the top
+three, 29 to 47, p = 0.0003. A hosted reranker beats ripgrep 85 to 60
+(p = 0.0008) while sending the query and about forty chunks rather than
+the corpus.
 
 The bucket that matters most is where ripgrep drowned: it returned more
-than twenty files for **72 of the 154**, median seventy. Fully local
+than twenty files for **72 of the 154**, median seventy. The local default
 turns 23 of those into a top-ten answer, a hosted reranker 33. That is
 the half of real questions where ranking is the entire value, and it is
 also where this is furthest from finished.

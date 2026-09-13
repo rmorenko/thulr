@@ -54,16 +54,16 @@ tokens.
 
 What *is* measured is the ranking, against `ripgrep` on 154 questions
 taken from the issue trackers of the indexed projects — nobody here wrote
-them. Right file in the top ten: fully local **55**, ripgrep **60**,
-local with hybrid retrieval **64**, and with a hosted reranker **85**.
-So the default ties grep and the configured version beats it by a
-distance, which is worth knowing before you wire anything up.
+them. Right file in the top ten: the local default **65**, ripgrep **60**, and
+with a hosted reranker **85**. So the default ties grep and the
+configured version beats it by a distance, which is worth knowing before
+you wire anything up.
 
 The number an agent should care about most: of those 154 questions,
 `ripgrep` returned **more than twenty files for 72 of them**, median
 seventy. Those are the questions where a ranked answer is the difference
 between reading three files and reading seventy — and they are nearly
-half of what real people ask. Fully local turns 23 of those 72 into a
+half of what real people ask. The local default turns 23 of those 72 into a
 top-ten answer; with a hosted reranker, 33.
 
 Wire this up where your agent's greps come back with hundreds of matches.

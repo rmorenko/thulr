@@ -22,18 +22,18 @@ its best query drawn from the same words:
 
 | configuration             | hit@3 | hit@10 | what leaves the machine  |
 | ------------------------- | ----: | -----: | ------------------------ |
-| default, local only       |    29 |     55 | nothing                  |
-| + hybrid retrieval        |    45 |     64 | nothing                  |
+| default — hybrid on       |    47 |     65 | nothing                  |
+| hybrid turned off         |    29 |     55 | nothing                  |
 | + a hosted reranker       |    50 |     85 | the query and ~40 chunks |
 | a hosted embedder as well |    61 |    109 | every chunk, once        |
 | `ripgrep`                 |    60 |     60 | —                        |
 
-Read it plainly. **Local only ties grep** — 55 against 60, and the
-difference is not significant. Fusing a lexical pass with the vector one
-costs nothing and is worth sixteen questions at the top. Adding a hosted
-reranker — which sends the query and about forty candidate chunks, not
-your code — beats grep 85 to 60 and makes the top three
-indistinguishable from replacing the model outright.
+Read it plainly. **Local ties grep at depth ten** — 65 against 60, and
+the difference is not significant; fusing a lexical pass with the vector
+one is what closed most of the gap, and it costs nothing and sends
+nothing. Adding a hosted reranker — which sends the query and about
+forty candidate chunks, never your code — beats grep 85 to 60 and puts
+the top three within reach of replacing the model outright.
 
 **So locality is a setting with a price, not the product.** It is a real
 setting and a defensible one: nothing leaves unless a config file says

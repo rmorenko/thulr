@@ -400,6 +400,16 @@ class LanceDBStore(VectorStore):
             rows = builder.where(" AND ".join(parts)).limit(k).to_list()
         except Exception:  # no index yet, or a query BM25 cannot parse
             return []
+        # Scored by BM25, which is this arm's own signal and what it
+        # has to be ordered by. Scoring it by cosine instead was tried
+        # and measured: it makes the lexical arm a weaker copy of the
+        # vector one, because the pipeline then orders it by semantic
+        # similarity, and top-ten with a reranker fell 85 to 77.
+        #
+        # The cost is that `score` carries two scales once the arms are
+        # fused — a cosine for what the vector arm found, a BM25 figure
+        # for what only this one did. Eight questions is too much to pay
+        # for one tidy column.
         return [_hit(row, score=float(row.get("_score", 0.0))) for row in rows]
 
     def refresh_text_index(self) -> None:

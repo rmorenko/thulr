@@ -327,21 +327,38 @@ class Config:
     def hybrid(self) -> bool:
         """Whether search fuses a BM25 pass with the vector pass.
 
-        Measured to be better and free: over 154 questions harvested
-        from issue trackers, against the vector arm alone, `hit@3` goes
-        29 -> 45 (19 gained, 3 lost, p = 0.0009) and `hit@10` 55 -> 64,
-        with indexing time unchanged — 11.3 seconds against 11.2 on the
-        largest workspace. It works because the arms fail differently:
-        only 28 of those questions were answered by both.
+        On, and measured rather than assumed. Over 154 questions
+        harvested from the indexed projects' own issue trackers, against
+        the vector arm alone: `hit@3` 29 -> 47 (21 gained, 3 lost,
+        p = 0.0003) and `hit@10` 55 -> 65 (17 gained, 7 lost, p = 0.06).
+        Indexing time does not move — a BM25 index over text already on
+        disk is nothing beside embedding it — and nothing leaves the
+        machine either way.
 
-        Off anyway, and that is not timidity. Fusing changes `score` from
-        a cosine into a rank score, which is a different number in every
-        answer this tool prints, and it puts fewer candidates in front of
-        the reranker than `RERANK_BUDGET` promises. Both are defensible
-        to change; neither should ride along unannounced with a
-        measurement of something else.
+        It works because the arms fail differently: only 28 of those
+        questions were answered by both, so the union is far above
+        either. Fusion collects part of that; see `pipeline._fuse`.
+
+        Two things that had to be true before this could be a default,
+        and both are:
+
+        `score` is still what retrieval said, not a rank score. Ranking
+        by rank score would have put 0.016 in every row of a column
+        people read as similarity and made "an exact match scores 1.0"
+        false wherever it is written, so `_fuse` orders by rank and
+        leaves each hit the score it arrived with. That leaves two
+        scales in one column once the arms are fused — see
+        `LanceDBStore.lexical` for why the tidier alternative was
+        measured and rejected.
+
+        The reranker still gets the candidates `RERANK_BUDGET` promises.
+        It briefly did not, because fusion keyed on chunk id alone and a
+        chunk id is `sha256(text, path)` — the same file in two
+        repositories collapsed into one hit.
+
+        Turning it off is for somebody who wants exactly the old ranking.
         """
-        return bool(self._setting("store", "hybrid", False))
+        return bool(self._setting("store", "hybrid", True))
 
     @property
     def store_uri(self) -> str:
