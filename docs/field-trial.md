@@ -195,6 +195,54 @@ file first for 92% of verbatim queries, re-indexes 125 000 chunks in
 a working engine with the wrong model in it, a candidate pool too
 shallow, and history drowning the code.
 
+## Questions this project did not write
+
+Everything above rests on questions written by the person who built the
+tool. Every guard around them — freezing them before a run, the
+substring leak rule, the ripgrep control — narrows that and none of it
+removes it, and one sentence from a sceptic ends the argument.
+
+So they were replaced at the source. `scripts/harvest.py` takes a closed
+issue's title as the question, in its author's words, and the files the
+pull request that closed it changed as the answer. Neither end was
+produced by anybody measuring this. The selection rules are frozen in
+code: merged before the pinned commit so the answer is in the indexed
+tree, an explicit `fixes #n` so the pairing is the author's claim, one to
+five files that all still exist at the pin, no test-only or doc-only
+fixes, no bots, and the same substring leak rule. Every question carries
+the issue and pull request urls. 355 across the seven workspaces, 204 in
+the routine tier.
+
+The control was rebuilt too, because swapping the questions while
+keeping a hand-written `rg_query` would have been a swindle: terms are
+extracted from the question by a frozen rule, all of them are tried, and
+ripgrep's *best* outcome is the one reported.
+
+Of the 204, fifty are unreachable — the file was never indexed, all of
+them Elixir, which has no grammar here. That ratio is itself a finding:
+real questions land where the codebase is, not where the indexer is
+comfortable. On the 154 that remain, paired, McNemar exact:
+
+| Configuration             | hit@3 | hit@10 |
+| ------------------------- | ----: | -----: |
+| default, local only       |    29 |     55 |
+| + hybrid retrieval        |    45 |     64 |
+| + a hosted reranker       |    50 |     85 |
+| a hosted embedder as well |    61 |    109 |
+| `ripgrep`                 |    60 |     60 |
+
+The default ties ripgrep (55 against 60, p = 0.60) and the two find
+*different* questions — 27 only wsindex, 32 only ripgrep. Hybrid
+retrieval is free and local and worth sixteen at the top. A hosted
+reranker beats ripgrep 85 to 60 (p = 0.0008) while sending the query and
+about forty chunks rather than the corpus.
+
+The bucket that matters most is where ripgrep drowned: it returned more
+than twenty files for **72 of the 154**, median seventy. Fully local
+turns 23 of those into a top-ten answer, a hosted reranker 33. That is
+the half of real questions where ranking is the entire value, and it is
+also where this is furthest from finished.
+
 ## What happened next, and it changes the verdict above
 
 That paragraph was written as a consolation and turned out to be the

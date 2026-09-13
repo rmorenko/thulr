@@ -48,22 +48,27 @@ explicitly configure a remote model — see [for-security.md](for-security.md).
 ## What has not been measured, and it is the question you care about
 
 **Whether an agent with wsindex beats the same agent with `grep`.** That
-comparison has not been run. Everything measured so far ranks *hits* —
-it says the right file is in the top three 88% of the time when a
-question shares any vocabulary with the code, and 52% when it shares
-none — but ranking is not the same as an agent finishing a task with
-fewer tokens.
+comparison has not been run, and it is the one that matters: everything
+measured here ranks *hits*, and a rank is not a task finished with fewer
+tokens.
 
-The honest state: wsindex demonstrably beats `ripgrep` on large
-codebases, where grep returns two hundred files and ranking is the whole
-value. On an 11 786-file Java repository it put four of four identifier
-answers in the top three against ripgrep's one. Whether that advantage
-survives an agent that can grep *and* read *and* iterate is a different
-experiment, and it is planned rather than done.
+What *is* measured is the ranking, against `ripgrep` on 154 questions
+taken from the issue trackers of the indexed projects — nobody here wrote
+them. Right file in the top ten: fully local **55**, ripgrep **60**,
+local with hybrid retrieval **64**, and with a hosted reranker **85**.
+So the default ties grep and the configured version beats it by a
+distance, which is worth knowing before you wire anything up.
 
-Until it is run, wire this up if your agent is working in a codebase big
-enough that its greps come back with hundreds of matches. That is where
-the measured advantage is.
+The number an agent should care about most: of those 154 questions,
+`ripgrep` returned **more than twenty files for 72 of them**, median
+seventy. Those are the questions where a ranked answer is the difference
+between reading three files and reading seventy — and they are nearly
+half of what real people ask. Fully local turns 23 of those 72 into a
+top-ten answer; with a hosted reranker, 33.
+
+Wire this up where your agent's greps come back with hundreds of matches.
+That is where the measured advantage is, and it is now a measured number
+rather than a claim.
 
 ## Determinism
 

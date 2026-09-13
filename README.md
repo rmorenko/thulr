@@ -9,28 +9,43 @@ repositories at once — and finds where things live, with exact
 C, C++, C#, Go, Rust, Kotlin, PHP, Ruby), front-end components (Vue,
 Svelte, Angular templates) and configs (TOML, YAML, JSON, XML, Dockerfile)
 are chunked by their syntax trees, docs by headers; every chunk is
-embedded, and results are ranked rather than listed. Everything runs on
-your machine.
+embedded, and results are ranked rather than listed. By default that all
+happens on your machine, and what changes it is named below.
 
-**Out of the box it is a ranked search, not a question-answering system,
-and both halves of that sentence are measured.** A [field trial on twenty
-real workspaces](docs/field-trial.md) asked questions phrased the way a
-person thinks — deliberately using none of the words in the answer file —
-and the default model answered 2 of 23 in the top three. `ripgrep`
-answered none of them, so the need is real. What the default *does* do is
-beat grep where grep drowns: on an 11 786-file Java codebase it put four
-of four identifier answers in the top three, against ripgrep finding one
-and burying two in lists of over twenty files.
+**What it is measured to do, on questions nobody here wrote.** The honest
+test of a search tool is questions from people who have never heard of
+it, so [355 of them were harvested](docs/field-trial.md) from the issue
+trackers of the indexed projects: the question is a closed issue's title
+in its author's words, and the answer is the file the pull request that
+closed it changed. On the 154 answerable ones, against `ripgrep` given
+its best query drawn from the same words:
 
-**The limit is the model, not the design, and that is measured too.**
-Swapping in a frontier code embedder and reranker — same chunks, same
-questions, same pipeline — takes those plain-English questions from 2 to
-**12 of 23 in the top three and 18 of 23 in the top ten**, and identifier
-questions to 16 of 16. Everything under the model held: the chunking, the
-store, the history quota, the funnel. What ships by default is a 23M
-parameter model that runs on your laptop and sends nothing anywhere, and
-that is the trade being made — see [Choosing the
-model](#choosing-the-model).
+| configuration             | hit@3 | hit@10 | what leaves the machine  |
+| ------------------------- | ----: | -----: | ------------------------ |
+| default, local only       |    29 |     55 | nothing                  |
+| + hybrid retrieval        |    45 |     64 | nothing                  |
+| + a hosted reranker       |    50 |     85 | the query and ~40 chunks |
+| a hosted embedder as well |    61 |    109 | every chunk, once        |
+| `ripgrep`                 |    60 |     60 | —                        |
+
+Read it plainly. **Local only ties grep** — 55 against 60, and the
+difference is not significant. Fusing a lexical pass with the vector one
+costs nothing and is worth sixteen questions at the top. Adding a hosted
+reranker — which sends the query and about forty candidate chunks, not
+your code — beats grep 85 to 60 and makes the top three
+indistinguishable from replacing the model outright.
+
+**So locality is a setting with a price, not the product.** It is a real
+setting and a defensible one: nothing leaves unless a config file says
+so, in as many words, and [for-security.md](docs/for-security.md) lists
+every line that can change that. But the version of this tool that beats
+`grep` is not the version that sends nothing.
+
+**Two questions it answers that `grep` cannot**, at any setting and with
+no network: where a *setting* is used, bridging `max_retries` in a yaml
+to `MaxRetries` in the code that reads it — which neither `rg -w` nor
+`rg -i` can do — and *why* a definition looks the way it does, by walking
+blame to the commit message that explains it.
 
 ## Quickstart
 

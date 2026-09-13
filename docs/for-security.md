@@ -11,6 +11,29 @@ Three things can change that, and none of them is a default. Each has to
 be typed into a config file, and each is named below with exactly what it
 sends.
 
+**And the part a security reviewer is usually not told.** Staying at the
+default costs quality, and the amount is measured. On 154 questions
+harvested from the indexed projects' own issue trackers, the fully local
+default finds the right file in the top ten 55 times; `ripgrep` finds it
+60\. That is a tie with grep. Turning on a hosted *reranker* — which
+sends the query and about forty candidate chunks per search, never the
+corpus — takes it to 85. Replacing the embedder as well, which does send
+every chunk once, takes it to 109.
+
+So the decision in front of you is not "secure or insecure". It is which
+of four postures to buy, and three of them are defensible:
+
+| Posture                    | Finds it (of 154) | What leaves        |
+| -------------------------- | ----------------: | ------------------ |
+| Local only                 |                55 | Nothing            |
+| Local, hybrid retrieval on |                64 | Nothing            |
+| Hosted reranker            |                85 | Query + ~40 chunks |
+| Hosted embedder as well    |               109 | Every chunk, once  |
+
+The second row is free and sends nothing; if your answer is "nothing
+leaves, full stop", that is the row to standardise on rather than the
+first. The third is the one most organisations should argue about.
+
 ## What opens a socket, and when
 
 | When                                     | What goes out                                        | Avoidable                |

@@ -8,13 +8,34 @@ config sections, document headings — turns each piece into a vector, and
 keeps the lot in a file next to the config. Then you ask questions and it
 gives you `file:line`.
 
-Everything happens on your machine. The model runs in your process, the
-index is a file you can delete, and a warm search opens zero sockets.
-There is no account, no server to run, and nothing is sent anywhere.
+By default that all happens on your machine. The model runs in your
+process, the index is a file you can delete, and a warm search opens zero
+sockets. There is no account and no server to run.
 
-That is the whole idea. What follows is what it is measured to do, on
-twenty codebases that are not its own — see [field-trial.md](field-trial.md)
-for how that was measured and what else it found.
+**What that default costs you is measured, and you should know it before
+you install anything.** On 154 questions taken from the issue trackers of
+the projects being indexed — real questions, in the words of people who
+had never heard of this tool — the fully local default puts the right
+file in the top ten 55 times. `ripgrep` manages 60. That is a tie with
+grep, and nobody should install a tool to tie with grep.
+
+What changes it:
+
+| What you turn on      | Finds it (of 154) | What leaves your machine |
+| --------------------- | ----------------: | ------------------------ |
+| nothing — the default |                55 | nothing                  |
+| hybrid retrieval      |                64 | nothing                  |
+| a hosted reranker     |                85 | the query and ~40 chunks |
+| a hosted embedder too |               109 | every chunk, once        |
+
+Hybrid retrieval is free, local, and one line of config. The hosted
+reranker sends the query and about forty candidate chunks per search —
+not your repository — and it is the line where this stops tying with grep
+and starts beating it 85 to 60.
+
+What follows is what it is measured to do — see
+[field-trial.md](field-trial.md) for how that was measured and what else
+it found.
 
 ## What it gives you today
 

@@ -4,10 +4,24 @@
 
 A command-line tool that indexes the several git repositories a team
 works in and answers questions about them with exact file and line
-numbers. It runs entirely on the developer's own machine: the model is
-local, the index is a file beside the config, nothing is uploaded, and
-there is no service to operate. It is one binary, no account, no server,
-no per-seat cost.
+numbers. It is one binary, no account, no per-seat cost, and by default
+it runs entirely on the developer's own machine.
+
+**That default is a posture with a price, and the price is measured.**
+On 154 questions taken from the issue trackers of the projects being
+indexed, fully local finds the right file in the top ten 55 times and
+`ripgrep` finds it 60 — a tie. A hosted reranker, which sends a query
+and about forty candidate chunks per search and never the repository,
+takes it to 85. A hosted embedder as well, which does send every chunk
+once, takes it to 109. Four postures, three of them defensible, and the
+choice is yours rather than this document's.
+
+If the answer has to be "nothing leaves", the row to standardise on is
+not the bare default but the default with hybrid retrieval on: still
+nothing leaves, and it is 64 rather than 55. If you have hardware and a
+closed network, the same argument points at running a larger model on
+your own infrastructure — which this supports and which has **not** been
+measured here, so treat it as a direction rather than a number.
 
 Everything below is measured on twenty real codebases that are not its
 own — 105 repositories from twenty GitHub organizations, chosen to
