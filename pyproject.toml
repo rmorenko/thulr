@@ -265,7 +265,7 @@ shell = """
 set -eu -o pipefail
 ruff check --fix .
 ruff format .
-git ls-files '*.md' | xargs -r mdformat
+git ls-files '*.md' | grep -v '^docs/protocols/' | xargs -r mdformat
 git ls-files '*.toml' | xargs -r taplo fmt
 git ls-files '*.yml' '*.yaml' | xargs -r yamlfix
 for f in $(git ls-files '*.json'); do
@@ -282,7 +282,7 @@ interpreter = "bash"
 shell = """
 set -eu -o pipefail
 ruff format --check .
-git ls-files '*.md' | xargs -r mdformat --check
+git ls-files '*.md' | grep -v '^docs/protocols/' | xargs -r mdformat --check
 git ls-files '*.toml' | xargs -r taplo fmt --check
 git ls-files '*.yml' '*.yaml' | xargs -r yamlfix --check
 for f in $(git ls-files '*.json'); do

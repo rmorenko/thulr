@@ -56,7 +56,25 @@ def wants_rich(target: Console | None = None) -> bool:
 
 def plain_hit(hit: Hit) -> str:
     """One hit as one greppable line — the format this CLI has always had."""
-    return f"{hit.location}  {hit.score:.3f}  {hit.text.splitlines()[0]}"
+    return f"{hit.location}  {_confidence(hit)}  {hit.text.splitlines()[0]}"
+
+
+def _confidence(hit: Hit) -> str:
+    """What to print beside a hit: a similarity, or what agreed on it.
+
+    A fused search is ordered by how many retrieval arms found a chunk,
+    not by similarity, so a cosine printed beside it does not descend
+    down the list and reads as a broken sort — and where only the
+    lexical arm found a chunk the number is not even a cosine. Measured
+    on a real workspace: 0.648, 0.692, 0.586, and one row at 7.269.
+
+    So when the arms disagree the column says which agreed, and when
+    there is only one arm it stays the similarity it always was.
+    """
+    found = hit.metadata.get("found_by")
+    if found is None:
+        return f"{hit.score:.3f}"
+    return "both " if int(found) > 1 else "one  "
 
 
 def _snippet(hit: Hit) -> Any:
@@ -103,7 +121,7 @@ def render_hits(hits: Sequence[Hit], *, target: Console | None = None) -> None:
             f"[dim]{hit.start_line}-{hit.end_line}"
             f"{'  ' + hit.symbol if hit.symbol else ''}[/]"
         )
-        table.add_row(str(position), f"{hit.score:.3f}", where, _snippet(hit))
+        table.add_row(str(position), _confidence(hit).strip(), where, _snippet(hit))
     out.print(table)
 
 

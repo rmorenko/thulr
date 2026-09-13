@@ -148,6 +148,15 @@ justify. `1 / (RRF_K + rank)` needs no calibration and cannot be gamed
 by one arm reporting large numbers."""
 
 
+FOUND_BY = "found_by"
+"""Metadata key: how many retrieval arms found this chunk.
+
+Present only on a fused search. It is what a reader needs and the score
+stopped being: under fusion the list is ordered by rank agreement, so a
+hit with a lower cosine can and should sit above one with a higher, and
+a column of cosines that does not descend reads as a broken sort."""
+
+
 def _fuse(*arms: list[Hit]) -> list[Hit]:
     """Reciprocal rank fusion over one result list per retrieval arm.
 
@@ -176,7 +185,12 @@ def _fuse(*arms: list[Hit]) -> list[Hit]:
     """
     ranked: dict[tuple[str, str], float] = {}
     seen: dict[tuple[str, str], Hit] = {}
-    for arm in arms:
+    # Which arms found each chunk, because that is what explains the
+    # order and the score no longer does. A reader looking at a ranked
+    # list asks "why is this one above that one"; under fusion the
+    # answer is "both arms found it", and a cosine cannot say so.
+    by: dict[tuple[str, str], list[int]] = {}
+    for which, arm in enumerate(arms):
         for rank, hit in enumerate(arm, start=1):
             # Keyed by repo *and* id, not id alone. A chunk id is
             # `sha256(text, path)`, so two repositories holding the same
@@ -187,12 +201,16 @@ def _fuse(*arms: list[Hit]) -> list[Hit]:
             key = (str(hit.metadata.get("repo", "")), str(hit.native_id))
             ranked[key] = ranked.get(key, 0.0) + 1.0 / (RRF_K + rank)
             seen.setdefault(key, hit)
+            by.setdefault(key, []).append(which)
     # Ordered by the fused rank, scored by what retrieval said. A rank
     # score is 0.016 for everything and would replace a similarity a
     # person can read with a number that is the same in every row — and
     # would make "an exact match scores 1.0" false everywhere it is
     # written down.
-    return [seen[key] for key in sorted(ranked, key=lambda key: ranked[key], reverse=True)]
+    return [
+        replace(seen[key], metadata={**seen[key].metadata, FOUND_BY: len(set(by[key]))})
+        for key in sorted(ranked, key=lambda key: ranked[key], reverse=True)
+    ]
 
 
 log = logging.getLogger(__name__)
@@ -332,7 +350,7 @@ class Pipeline:
                 state = state.with_commit(repo.id, diff.head, markup=repo.markup_key)
                 state.save(self.state_dir)
             self._manifest_links(repo, root=root)
-        self._prune_links(defined_before)
+        self._prune_links(defined_before, written=tally.chunks > 0)
         # Once, after every repo, for the same reason the link prune is
         # here: the index covers the whole table and rebuilding it per
         # batch would make a run quadratic in batches. A store without a
@@ -376,7 +394,7 @@ class Pipeline:
             path="(manifest)",
         )
 
-    def _prune_links(self, defined_before: set[str]) -> None:
+    def _prune_links(self, defined_before: set[str], *, written: bool) -> None:
         """Drop mentions nothing defines, and say so if that cost anything.
 
         Two thirds of mentions name the standard library or a vendored
@@ -397,8 +415,13 @@ class Pipeline:
         Args:
             defined_before: Normalised names the store already had
                 definitions for when this run started.
+            written: Whether this run wrote any links at all.
         """
-        if self.links is None:
+        if self.links is None or not written:
+            # Nothing was written, so nothing can have become unjoinable
+            # and no definition can have arrived. The whole pass is
+            # skippable, and skipping it is what keeps an unchanged
+            # re-index the cheap thing the README says it is.
             return
         arrived = self.links.anchor_names() - defined_before
         lost = self.links.rescued(arrived)

@@ -43,6 +43,11 @@ repos:
         entry: uv run mdformat --check
         language: system
         types: [markdown]
+        # Protocols are written by a harness, not by a person, and the
+        # methodology says they are not edited after the fact. Running a
+        # formatter over one is editing it, and a run that fails a commit
+        # hook because of its own output is a harness nobody will use.
+        exclude: ^docs/protocols/
       - id: codespell
         name: codespell
         entry: uv run codespell

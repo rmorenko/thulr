@@ -139,7 +139,14 @@ def test_index_then_search_end_to_end(workspace: Path) -> None:
     result = runner.invoke(app, ["search", query, "-k", "1"])
     assert result.exit_code == 0
     assert "repo1/src/main.py:1-2" in result.output
-    assert "1.000" in result.output
+    # `both`, not `1.000`. A fused search is ordered by how many
+    # retrieval arms agreed, so a cosine beside each row does not descend
+    # down the list and reads as a broken sort — measured on a real
+    # workspace as 0.648, 0.692, 0.586, and one row at 7.269, which is a
+    # BM25 figure in a column of similarities. The column now says what
+    # ordered the list; with hybrid off it is the cosine again, and
+    # `test_the_score_is_a_similarity_when_nothing_is_fused` pins that.
+    assert "both" in result.output
 
     # Second index run: dedup writes nothing.
     result = runner.invoke(app, ["index"])

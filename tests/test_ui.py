@@ -151,3 +151,22 @@ def test_progress_names_the_repo_being_read(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert "indexing" in stream.getvalue()
     assert "repo1" in stream.getvalue()
+
+
+def test_the_column_says_what_ordered_the_list() -> None:
+    """A fused search is ordered by agreement between retrieval arms, so
+    the number beside each row stops descending — and where only the
+    lexical arm found a chunk it is not even a similarity. Measured on a
+    real workspace before this changed: 0.648, 0.692, 0.586, and one row
+    at 7.269. A column that mixes a cosine and a BM25 figure, out of
+    order, reads as a broken sort.
+    """
+    assert "both" in plain_hit(hit(0.58, found_by=2))
+    assert "one" in plain_hit(hit(7.26, found_by=1))
+    assert "7.26" not in plain_hit(hit(7.26, found_by=1))
+
+
+def test_the_score_is_a_similarity_when_nothing_is_fused() -> None:
+    """With one retrieval arm the score orders the list, so it is what it
+    has always been and the old format is unchanged."""
+    assert "0.580" in plain_hit(hit(0.58))

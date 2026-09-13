@@ -108,6 +108,13 @@ _INDEXES = (
     # `by_name` asks for both spellings at once, so both columns have to
     # be searchable or the query degrades to a scan on half of itself.
     "CREATE INDEX IF NOT EXISTS links_by_norm ON links (norm)",
+    # `prune_unjoinable` is an anti-join on exactly this pair, and
+    # without it the subquery has no index to descend: measured on a
+    # 658 364-row store it took **690 seconds to delete nothing**, on
+    # every index run, which is most of why re-indexing an unchanged
+    # 11 786-file workspace cost 762 seconds instead of the under-a-
+    # second the README promises. Found by tier 1, not by the suite.
+    "CREATE INDEX IF NOT EXISTS links_by_kind_norm ON links (kind, norm)",
 )
 """Every index over the table, built after the migration.
 

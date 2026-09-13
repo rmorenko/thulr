@@ -77,3 +77,6 @@ Thumbs.db
 
 # Written by `poe relevance`; the questions are committed, the run is not.
 relevance_report.md
+
+# Tier-1 protocols are regenerated per run and named by date; the ones
+# worth keeping are committed deliberately, not swept up by `git add -A`.
