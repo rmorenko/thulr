@@ -789,7 +789,20 @@ class Pipeline:
             # bounding the expensive half. See `RERANK_BUDGET`.
             candidates = sorted(all_hits, key=lambda h: h.score, reverse=True)[: k * RERANK_BUDGET]
             scores = self.reranker.rank(query, [hit.text for hit in candidates])
-            all_hits = [replace(h, score=s) for h, s in zip(candidates, scores, strict=True)]
+            scored = [replace(h, score=s) for h, s in zip(candidates, scores, strict=True)]
+            if hybrid:
+                # A voter, not a dictator. Overwriting the score throws
+                # the retrieval order away and keeps only the candidate
+                # set, and measured that is a bad trade: of 29 questions
+                # where fusion had put the answer *first*, re-scoring
+                # kept it first for four and pushed four out of the top
+                # ten entirely. Top-three went 45 to 36 for the whole
+                # corpus. So the reranker joins the fusion instead, on
+                # the same argument that chose fusion — three signals
+                # that fail differently, and agreement is the evidence.
+                all_hits = _fuse(candidates, sorted(scored, key=lambda h: h.score, reverse=True))
+            else:
+                all_hits = scored
         best = _within_quota(sorted(all_hits, key=lambda h: h.score, reverse=True), k=k)
         if self.stats is not None:
             # After the answer is computed, and unable to affect it: a
