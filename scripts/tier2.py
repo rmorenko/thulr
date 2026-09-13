@@ -149,6 +149,41 @@ a search for *all* of them finds, which is deliberately more generous
 than anything the tool does — a control that cannot lose is not one."""
 
 
+def spelled_apart(name: str, root: Path) -> tuple[set[str], set[str]]:
+    """Files naming this thing *as written*, and files naming it otherwise.
+
+    The second set is the whole claim the documents make about settings:
+    a key is `max_retries` in the yaml and `MaxRetries` in the code that
+    reads it, and neither `rg -w` nor `rg -i` bridges those. Scoring a
+    hit on the union let both sides win by pointing at the config file
+    the key is declared in — measured, that is most of why the control
+    scored 165 of 214 on a question it was supposed to be unable to
+    answer.
+
+    Returns:
+        Files using the spelling given, and files using another one and
+        not that one.
+    """
+    # Everything a person can reach from the spelling in front of them:
+    # the word itself, and the word ignoring case — which already
+    # catches `MAX_RETRIES`. Counting that as "another spelling" made
+    # the control score 24 of 25 on a question it is supposed to be
+    # unable to answer, because case is not the hard part.
+    same = set(rg("-l", "-F", "-w", name, cwd=root)) | set(rg("-l", "-F", "-iw", name, cwd=root))
+    other: set[str] = set()
+    for spell in (SPELLINGS[1], SPELLINGS[2]):
+        try:
+            written = spell(name)
+        except IndexError:
+            continue
+        # Only forms that removed a separator. `MAX_RETRIES` differs from
+        # `max_retries` by case alone and `rg -i` bridges it; `MaxRetries`
+        # differs by structure and nothing a person types bridges that.
+        if written and written.lower() != name.lower():
+            other |= set(rg("-l", "-F", "-w", written, cwd=root))
+    return same, other - same
+
+
 def truth_for(name: str, root: Path) -> set[str]:
     """Every file naming this thing, under any of its spellings."""
     found: set[str] = set()
@@ -340,6 +375,50 @@ def grade_refs(
     return found
 
 
+def grade_spelling(
+    subjects: list[str], root: Path, home: Path, env: dict[str, str], indexed: set[str]
+) -> list[Graded]:
+    """Does it reach code that spells a setting differently from its config?
+
+    The one query the documents say `grep` cannot serve, asked so that
+    the answer cannot come from the config file itself: only files using
+    *another* spelling count. The control is given its best attempt —
+    both `rg -w` and `rg -iw` on the spelling a person has in front of
+    them — because a control that was never allowed to try is not one.
+    """
+    found: list[Graded] = []
+    # Scanned rather than sampled, and stopped at `SAMPLE`: a key with a
+    # structurally different spelling somewhere is rare — measured, a
+    # sample of eighty keys yielded one — and a sample of one is not a
+    # measurement. The order is still the frozen shuffle, so which ones
+    # are reached is not a choice anybody made.
+    for subject in subjects[: SAMPLE * 40]:
+        if len(found) >= SAMPLE:
+            break
+        same, other = spelled_apart(subject, root)
+        if not other:
+            # Nothing spells it differently, so there is no bridge to
+            # cross and the question is vacuous rather than failed.
+            continue
+        answer = wsindex("refs", subject, cwd=home, env=env)
+        cited = {m.group(1) for m in (CITED.match(line) for line in answer.splitlines()) if m}
+        reached = set(rg("-l", "-F", "-w", subject, cwd=root)) | set(
+            rg("-l", "-F", "-iw", subject, cwd=root)
+        )
+        found.append(
+            Graded(
+                "refs/spelling",
+                subject,
+                bool(cited & other),
+                "found" if reached & other else "missed",
+                reachable=bool(other & indexed),
+                control_count=len(reached),
+                detail=f"{len(other)} files spell it otherwise, {len(same)} as written",
+            )
+        )
+    return found
+
+
 def config_keys(root: Path) -> list[str]:
     """Keys real config files declare, drawn with the frozen seed."""
     keys: Counter[str] = Counter()
@@ -358,7 +437,7 @@ def config_keys(root: Path) -> list[str]:
                 keys[found.group(1)] += 1
     names = sorted(keys)
     random.Random(SEED).shuffle(names)
-    return names[: SAMPLE * 2]
+    return names
 
 
 def indexed_paths(home: Path) -> set[str]:
@@ -411,7 +490,10 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     print("  refs on symbols", flush=True)
     run.graded += grade_refs("refs/symbol", names[SAMPLE : SAMPLE * 2], root, home, env, indexed)
     print("  refs on settings", flush=True)
-    run.graded += grade_refs("refs/setting", config_keys(root)[:SAMPLE], root, home, env, indexed)
+    keys = config_keys(root)
+    run.graded += grade_refs("refs/setting", keys[:SAMPLE], root, home, env, indexed)
+    print("  refs across spellings", flush=True)
+    run.graded += grade_spelling(keys, root, home, env, indexed)
     run.notes["deps"] = wsindex("deps", cwd=home, env=env)
     return run
 
@@ -459,7 +541,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for run in runs:
-        for kind in ("why", "refs/symbol", "refs/setting"):
+        for kind in ("why", "refs/symbol", "refs/setting", "refs/spelling"):
             group = [g for g in run.graded if g.kind == kind]
             if not group:
                 continue
@@ -516,7 +598,7 @@ def main() -> int:
     out = PROTOCOLS / f"tier2-{time.strftime('%Y-%m-%d')}.md"
     out.write_text(protocol(runs, time.monotonic() - started), encoding="utf-8")
     for run in runs:
-        for kind in ("why", "refs/symbol", "refs/setting"):
+        for kind in ("why", "refs/symbol", "refs/setting", "refs/spelling"):
             group = [g for g in run.graded if g.kind == kind]
             if group:
                 print(
