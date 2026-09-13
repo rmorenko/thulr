@@ -8,9 +8,9 @@ Three tools over MCP (`wsindex mcp`, stdio), and the interesting one is
 ```
 search(query, k=10, repo=, lang=, kind=, path=, symbol=, budget=)
 refs(name)     — which config declares a setting and what names it in
-                 code, across spellings (max_retries = MaxRetries); where
-                 a symbol is defined and which files name it, each use
-                 labelled call/code/import/string/comment, calls first
+                 code, across spellings (max_retries = MaxRetries), which
+                 is the half that beats grep; also where a symbol is
+                 defined and what names it, which does not
 why(symbol)    — the commits that wrote a definition, and their messages
 ```
 
@@ -58,6 +58,15 @@ them. Right file in the top ten: the local default **65**, ripgrep **60**, and
 with a hosted reranker **85**. So the default ties grep and the
 configured version beats it by a distance, which is worth knowing before
 you wire anything up.
+
+**Two answers here do beat `grep`, and both are now measured.** `why` —
+a definition to the commits that wrote it — named a commit that really
+touched those lines 200 times of 204, against `git log -S` at 183,
+winning the discordant pairs 19 to 2. And `refs` reaching a setting
+spelled one way in a config and another in code: 64 of 76, with the
+control at **zero**, because no flag `rg` has crosses that gap. `refs`
+on a plain symbol is the opposite — 184 to grep's 238 — so ask it about
+settings and history, not about names you already know.
 
 The number an agent should care about most: of those 154 questions,
 `ripgrep` returned **more than twenty files for 72 of them**, median

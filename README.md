@@ -553,7 +553,14 @@ copies without indexing.
 Two commands read what indexing recorded.
 
 `why` walks from a definition to the commits that wrote its lines, and
-prints their reasoning — which is usually the only place it exists:
+prints their reasoning — which is usually the only place it exists.
+
+**This is the strongest thing measured in this repository.** Over 204
+answerable questions across seven workspaces it named a commit that had
+really touched those lines **200 times**. The control — `git log -S`,
+what a person reaches for — managed 183, and lost the discordant pairs
+19 to 2. What a codebase knows about itself and nothing else records is
+in its history, and this is the path to it:
 
 ```
 $ uv run wsindex why add_chunks
@@ -590,8 +597,15 @@ string counts, and nothing resolves *which* definition a use refers to —
 graph is still deferred. What is here is the cheaper claim, this name
 occurs here, which is a search result rather than a fact about calls.
 
-The case this is actually best at is a setting, because it is the one
-`grep` cannot serve at all:
+**Measured, `refs` on a symbol loses to `grep` and should not be the
+reason you install this.** Over 261 answerable questions across seven
+workspaces — names drawn from the source, not from what the tool chose
+to show — it found the right file 184 times against `rg -w`'s 238, and
+lost the discordant pairs 11 to 65. It is competing with grep on grep's
+best case: you already know the exact name.
+
+The case it wins is one spelling of a setting reaching another, because
+that is the one `grep` cannot serve at all:
 
 ```
 $ uv run wsindex refs trusted_proxies
@@ -607,6 +621,15 @@ Three spellings of one setting, met under a normalised key. `rg -w trusted_proxi
 because they differ by more than case. A hit found under another
 spelling is labelled with the one actually found, so a variant never
 arrives disguised as an exact match.
+
+That one is measured too, and it is the sharpest result here: on the 76
+answerable cases where a config key is written structurally differently
+in code, `refs` reached the code **64 times and the control reached it
+zero**. Not "rarely" — zero, because no flag `rg` has crosses that gap.
+Be precise about the size of the edge, though: "find the setting at all"
+is a tie (171 to 165), and only 85 keys across seven workspaces are
+spelled two ways in the first place. It is a sharp edge, not a broad
+one.
 
 Each use says which sort it is — `call`, `code`, `import`, `string`,
 `comment` — and they are reported calls first, comments last. That is

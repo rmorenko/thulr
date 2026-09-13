@@ -34,6 +34,19 @@ reranker sends the query and about forty candidate chunks per search —
 not your repository — and it is the line where this stops tying with grep
 and starts beating it 85 to 60.
 
+**Two things here beat `grep` outright, and they are not the search.**
+Asking *why* a definition looks the way it does — walking its lines back
+to the commit that explains them — named a commit that really touched
+those lines 200 times of 204, where `git log -S` managed 183. And
+reaching a setting written `max_retries` in a yaml from the
+`MaxRetries` in the code that reads it: 64 of 76, with `rg` scoring
+**zero**, because no flag it has crosses that gap.
+
+The mirror of that, said plainly because you will otherwise assume it:
+asking `refs` about an ordinary symbol **loses** to `rg -w`, 184 to 238.
+If you already know the exact name, grep is the better tool and this one
+has nothing to add.
+
 What follows is what it is measured to do — see
 [field-trial.md](field-trial.md) for how that was measured and what else
 it found.
