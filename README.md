@@ -36,12 +36,12 @@ forty candidate chunks, never your code — beats grep 85 to 60 and puts
 the top three within reach of replacing the model outright.
 
 **And the number behind all of that: reaching an answer costs about a
-ninth of the reading.** The table above ranks *hits*, and a rank is not
+tenth of the reading.** The table above ranks *hits*, and a rank is not
 work saved, so the same 204 tasks were given to two workers under one
 token budget — `grep` reading a window around each match the way `rg -C`
 shows it, wsindex reading the line ranges it ranked, both stopping when
 a file holding the answer was in front of them. On the 99 tasks both
-finished, the median was **1 045 tokens against 9 449**, and wsindex was
+finished, the median was **1 263 tokens against 13 474**, and wsindex was
 cheaper on 85 of them. The worker is a fixed reading policy rather than a
 language model, so this measures the size of the pile each tool hands
 over — the part the tool controls — and not an agent's judgement.

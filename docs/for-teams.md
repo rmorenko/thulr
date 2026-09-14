@@ -9,7 +9,7 @@ it runs entirely on the developer's own machine.
 
 **What a developer stops doing:** on 204 tasks taken from the indexed
 projects' own issue trackers, reaching the answer took a median of
-1 045 tokens of reading against grep's 9 449 — about a ninth — and less
+1 263 tokens of reading against grep's 13 474 — about a tenth — and less
 reading in 85 of the 99 both finished. Counted as a fixed reading policy
 rather than as a person, so it is the size of the pile the tool hands
 over rather than anybody's cleverness.

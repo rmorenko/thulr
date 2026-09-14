@@ -47,7 +47,7 @@ explicitly configure a remote model — see [for-security.md](for-security.md).
 
 ## What it costs to answer, which is the number you are here for
 
-**Reaching the same answer costs about a ninth of the reading.** Over 204
+**Reaching the same answer costs about a tenth of the reading.** Over 204
 tasks taken from the indexed projects' own issue trackers — the title of
 a closed issue, and the files the pull request that closed it changed —
 two workers were sent at each one under a single token budget. `grep`
@@ -55,12 +55,12 @@ read a window around every match, the way `rg -C` shows it; wsindex read
 the line ranges it ranked. Both stopped when a file holding the answer
 was in front of them.
 
-|                                     |      wsindex |   grep |
-| ----------------------------------- | -----------: | -----: |
-| tasks found                         |          125 |    112 |
-| median tokens, on the 99 both found |    **1 045** |  9 449 |
-| mean                                |        3 277 | 25 443 |
-| cheaper                             | **85 of 99** |     14 |
+|                                      |       wsindex |   grep |
+| ------------------------------------ | ------------: | -----: |
+| tasks found                          |           125 |    112 |
+| median tokens, on the 102 both found |     **1 263** | 13 474 |
+| mean                                 |         3 277 | 25 443 |
+| cheaper                              | **89 of 102** |     13 |
 
 Read the median twice: that is what lands in your context window to get
 one answer.
