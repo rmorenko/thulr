@@ -67,6 +67,7 @@ class Skip(StrEnum):
     UNKNOWN_SUFFIX = "unknown-suffix"
     SYMLINK = "symlink"
     NOT_A_FILE = "not-a-file"
+    MISSING = "missing"
     TOO_LARGE = "too-large"
     BINARY = "binary"
     UNREADABLE = "unreadable"
@@ -77,7 +78,8 @@ SKIP_REASONS: dict[Skip, str] = {
     Skip.IGNORED: "excluded by this repo's `ignore`",
     Skip.UNKNOWN_SUFFIX: "no language claims this suffix; add a `formats` entry for it",
     Skip.SYMLINK: "a symlink; whatever it points at is indexed on its own, if it belongs",
-    Skip.NOT_A_FILE: "not a regular file",
+    Skip.NOT_A_FILE: "not a regular file — a directory, a socket, a device",
+    Skip.MISSING: "nothing at that path — check the spelling",
     Skip.TOO_LARGE: f"larger than {MAX_FILE_SIZE // 1024 // 1024} MB",
     Skip.BINARY: "binary; a NUL byte in the first 8 KiB, which is git's own test",
     Skip.UNREADABLE: "could not be read; check the permissions",
@@ -247,10 +249,16 @@ def examine(
             # walked on its own, and indexing it twice would put one text
             # at two paths.
             return Skip.SYMLINK
+        if not abs_path.exists():
+            # Said apart from NOT_A_FILE because the two send a reader
+            # to different places. `explain` is usually asked about a
+            # path somebody typed, and "not a regular file" about a
+            # path with nothing at it sends them looking for a symlink
+            # or a permission problem instead of a typo. A file deleted
+            # between git listing it and this call lands here too, which
+            # is also nobody's problem and also not a file *type*.
+            return Skip.MISSING
         if not abs_path.is_file():
-            # A broken symlink lands here too, and so does a file deleted
-            # between git listing it and this call. Neither is anybody's
-            # problem: there is nothing there to index.
             return Skip.NOT_A_FILE
         if abs_path.stat().st_size > MAX_FILE_SIZE:
             return Skip.TOO_LARGE

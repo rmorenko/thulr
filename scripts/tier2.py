@@ -225,17 +225,37 @@ CODE_SUFFIXES = {
 """What a definition can be found in. Narrow on purpose: a name declared
 in a yaml is a setting, and settings are asked about separately."""
 
-DEFINES = re.compile(
-    r"^\s*(?:(?:public|private|protected|static|final|async|export|pub)\s+)*"
-    r"(?:class|def|func|function|type|struct|interface|module|fn)\s+"
+BY_KEYWORD = re.compile(
+    r"^\s*(?:(?:public|private|protected|internal|static|final|async|export|pub)\s+)*"
+    r"(?:class|def|func|function|type|struct|interface|module|fn)\s+(?:self\.)?"
     r"([A-Za-z_][A-Za-z0-9_]{4,})"
 )
-"""A definition, as the source file spells it.
+"""`class Widget`, `def cleanup_database`, `fn read_all`. No trailing
+punctuation required: Ruby writes a method with no parentheses at all."""
 
-Subjects are drawn from the *tree*, never from what the tool returned.
-Asking a tool about the names it chose to show is how a measurement
-grades itself, and the first version of this file did exactly that — and
-produced zero questions, which is the only reason it was noticed."""
+BY_SHAPE = re.compile(
+    r"^\s*(?:(?:public|private|protected|internal|static|final|async|export|override|const|let|var)\s+)+"
+    r"(?:[A-Za-z_][\w<>\[\],.]*\s+)?"
+    r"([A-Za-z_][A-Za-z0-9_]{4,})\s*[(=]"
+)
+"""`public void processRequest(`, `export const useThing =`. A modifier is
+required and so is the `(` or `=`, because without both this matches any
+sentence with two words in it."""
+
+BY_RECEIVER = re.compile(r"^\s*func\s+\([^)]*\)\s*([A-Za-z_][A-Za-z0-9_]{4,})")
+"""`func (s *Server) HandleRequest(`, where Go puts the name after the
+receiver — which is most of the methods in a Go codebase."""
+
+DEFINERS = (BY_KEYWORD, BY_SHAPE, BY_RECEIVER)
+"""Three forms, because one was a sample nobody chose.
+
+The first version took only `keyword Name` and so could not see a Go
+method on a receiver, a Java or C# method, a TypeScript arrow export or
+a Ruby singleton — which is most of the definitions in the two largest
+workspaces in this corpus, both of which are Go and C#. Subjects are
+drawn from the *tree*, never from what the tool returned: asking a
+search engine about the names it chose to show is a measurement grading
+itself."""
 
 
 def defined_names(root: Path, repos: list[str]) -> list[str]:
@@ -252,9 +272,11 @@ def defined_names(root: Path, repos: list[str]) -> list[str]:
             except OSError:
                 continue
             for line in text.splitlines():
-                match = DEFINES.match(line)
-                if match:
-                    found.add(match.group(1))
+                for shape in DEFINERS:
+                    match = shape.match(line)
+                    if match:
+                        found.add(match.group(1))
+                        break
     names = sorted(found)
     random.Random(SEED).shuffle(names)
     return names
@@ -328,6 +350,56 @@ def grade_why(
     return found
 
 
+def defining_files(name: str, root: Path, repos: list[str]) -> set[str]:
+    """Files where this name is *defined*, by the same reading that chose it.
+
+    Structural, and that is the whole repair. Ground truth used to be
+    "files ripgrep finds naming this", which is what the control
+    computes — so the control was right by construction and could not
+    lose. Three attempts at fixing the *scoring* all failed for that
+    reason; the question had to change instead.
+    """
+    found: set[str] = set()
+    for repo in repos:
+        for path in (root / repo).rglob("*"):
+            if not path.is_file() or {".git", "node_modules", "vendor"} & set(path.parts):
+                continue
+            if path.suffix not in CODE_SUFFIXES:
+                continue
+            try:
+                text = path.read_text(errors="replace")
+            except OSError:
+                continue
+            for line in text.splitlines():
+                if any((m := shape.match(line)) and m.group(1) == name for shape in DEFINERS):
+                    found.add(f"{repo}/{path.relative_to(root / repo)}")
+                    break
+    return found
+
+
+WHY_NO_SETTING_QUESTION = """`refs` on a setting, asked as "does it find the file that declares
+this key", is not a question with a non-trivial answer and was removed.
+
+The ground truth had to be "a key at the head of a line before a colon
+or an equals sign" — which is character for character the rule
+`link_extract._CONFIG_KEY` uses to build the edge. Measured that way it
+scored 179 of 179, and that number says the pipeline delivers what the
+extractor found, which is a tier-1 question. It was the fourth time this
+harness graded a tool against its own rule, after crediting the control
+for concision, for returning anything, and for a truth set that
+contained it by construction.
+
+The reason the mistake kept recurring is worth keeping: for "does it
+find X", the natural ground truth is "where X is", and any rule written
+to compute that tends to be one of the two tools' rules. The questions
+that survive are the ones where the truth comes from somewhere else
+entirely — git's own history for `why`, and for the spelling bridge a
+set of files the control structurally cannot reach.
+
+What is left of the settings claim is that bridge, `refs/spelling`,
+which is measured and clean."""
+
+
 def grade_refs(
     kind: str,
     subjects: list[str],
@@ -335,41 +407,37 @@ def grade_refs(
     home: Path,
     env: dict[str, str],
     indexed: set[str],
+    repos: list[str],
 ) -> list[Graded]:
-    """`refs`: does it name the files that really use this name?
+    """Does it put the file that *defines* or *declares* this in reach?
 
-    Scored on whether the files it cites are among the files a
-    four-spelling search finds. The control is what a person types —
-    one spelling, `rg -w` — so the comparison is between what the tool
-    knows and what a person would have had to guess.
+    Both sides are graded by one rule — is a truth file among the first
+    `DROWNED_AT` things this put in front of the reader — and neither can
+    win by construction, because the truth is a position in a file that
+    neither tool computed.
     """
     found: list[Graded] = []
     for subject in subjects:
-        truth = truth_for(subject, root)
+        truth = defining_files(subject, root, repos)
         if not truth:
             continue
         answer = wsindex("refs", subject, cwd=home, env=env)
-        reachable = bool(truth & indexed)
-        # `repo/path`, kept whole. The control greps from the workspace
-        # root, so its paths carry the repository directory too, and
-        # stripping it here made every comparison empty — 0 of 40 with
-        # the tool citing six files and the truth holding twenty-seven.
-        cited = {m.group(1) for m in (CITED.match(line) for line in answer.splitlines()) if m}
-        cited = {c for c in cited if c and not c.startswith("commits/")}
+        cited = [m.group(1) for m in (CITED.match(line) for line in answer.splitlines()) if m]
+        cited = [c for c in cited if c and not c.startswith("commits/")]
         control = rg("-l", "-F", "-w", subject, cwd=root)
         found.append(
             Graded(
                 kind,
                 subject,
-                bool(cited & truth),
+                bool(set(cited[:DROWNED_AT]) & truth),
                 "found"
-                if control and len(control) <= DROWNED_AT
+                if set(control[:DROWNED_AT]) & truth
                 else "drowned"
-                if control
+                if set(control) & truth
                 else "missed",
-                reachable=reachable,
+                reachable=bool(truth & indexed),
                 control_count=len(control),
-                detail=f"cited {len(cited)}, truth {len(truth)}",
+                detail=f"cited {len(cited)}, defines/declares in {len(truth)}",
             )
         )
     return found
@@ -556,10 +624,11 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     print(f"  why ({len(names)} names in the tree)", flush=True)
     run.graded += grade_why(root, repos, home, env, names[:SAMPLE])
     print("  refs on symbols", flush=True)
-    run.graded += grade_refs("refs/symbol", names[SAMPLE : SAMPLE * 2], root, home, env, indexed)
+    run.graded += grade_refs(
+        "refs/symbol", names[SAMPLE : SAMPLE * 2], root, home, env, indexed, repos
+    )
     print("  refs on settings", flush=True)
     keys = config_keys(root)
-    run.graded += grade_refs("refs/setting", keys[:SAMPLE], root, home, env, indexed)
     print("  refs across spellings", flush=True)
     run.graded += grade_spelling(keys, root, home, env, indexed)
     print("  dupes", flush=True)
@@ -593,7 +662,6 @@ GATE = "the tool answers more than its control, significantly, on the reachable 
 TOUCHES = {
     "why": "README `## Asking why, and who`; for-developers; for-agents",
     "refs/symbol": "README `refs` section; for-agents tool list",
-    "refs/setting": "for-security; for-developers; README `refs` section",
     "refs/spelling": "README `refs` section; for-agents tool list",
 }
 """Which documented claims each kind is evidence about.
@@ -617,7 +685,7 @@ def interpretation(runs: list[Run]) -> list[str]:
     """
     every = [g for run in runs for g in run.graded]
     lines = ["", "## Interpretation", "", f"Gate: _{GATE}_.", ""]
-    for kind in ("why", "refs/symbol", "refs/setting", "refs/spelling"):
+    for kind in ("why", "refs/symbol", "refs/spelling"):
         live = [g for g in every if g.kind == kind and g.reachable]
         if not live:
             continue
@@ -689,7 +757,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for run in runs:
-        for kind in ("why", "refs/symbol", "refs/setting", "refs/spelling"):
+        for kind in ("why", "refs/symbol", "refs/spelling"):
             group = [g for g in run.graded if g.kind == kind]
             if not group:
                 continue
@@ -780,7 +848,7 @@ def main() -> int:
     out = PROTOCOLS / f"tier2-{time.strftime('%Y-%m-%d')}.md"
     out.write_text(protocol(runs, time.monotonic() - started), encoding="utf-8")
     for run in runs:
-        for kind in ("why", "refs/symbol", "refs/setting", "refs/spelling"):
+        for kind in ("why", "refs/symbol", "refs/spelling"):
             group = [g for g in run.graded if g.kind == kind]
             if group:
                 print(

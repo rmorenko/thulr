@@ -356,7 +356,15 @@ def test_examine_names_the_rule_that_excluded_a_file(tmp_path: Path) -> None:
     assert examine(repo, "vendor/lib.py", ignore=["vendor/*"]) is Skip.IGNORED
     assert examine(repo, "notes.unknownsuffix") is Skip.UNKNOWN_SUFFIX
     assert examine(repo, "alias.py") is Skip.SYMLINK
-    assert examine(repo, "gone.py") is Skip.NOT_A_FILE
+    # `MISSING`, not `NOT_A_FILE`: the two send a reader to different
+    # places. `explain` is usually asked about a path somebody typed, and
+    # "not a regular file" about a path with nothing at it sends them
+    # hunting a symlink or a permission problem instead of a typo.
+    assert examine(repo, "gone.py") is Skip.MISSING
+    # A suffix a language claims, so the suffix rule does not answer
+    # first and the file-type rule is the one under test.
+    (repo / "adir.py").mkdir()
+    assert examine(repo, "adir.py") is Skip.NOT_A_FILE
     assert examine(repo, "big.py") is Skip.TOO_LARGE
     assert examine(repo, "blob.py") is Skip.BINARY
     assert isinstance(examine(repo, "real.py"), WalkedFile)

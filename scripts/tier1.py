@@ -215,38 +215,53 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     record("index", "finishes on a real workspace", do_index)
 
     def do_coverage() -> tuple[bool, str, str]:
-        """The silent failure the field trial found: indexed almost
-        nothing and reported success. Counted against the tree rather
-        than against what the walker decided to offer itself."""
+        """Did it read the tree, or say why not?
+
+        Counted against **every** file in the tree, not against a list of
+        suffixes this harness believes are indexable. That list was the
+        first version and it could not see the failure it was written
+        for: `pow-auth` holds 381 Elixir files, no grammar covers them,
+        and a check whose denominator came from wsindex's own supported
+        suffixes scored it 30 of 36 — 83%, a pass — while 401 files went
+        unread. A measurement that inherits the tool's blind spot cannot
+        see the tool go blind.
+
+        Reading little is not the failure. Reading little *in silence*
+        is, so a low share passes when the run said so and names what it
+        skipped.
+        """
         on_disk = sum(
             1
             for repo in repos
             for path in (root / repo).rglob("*")
             if path.is_file()
-            and path.suffix in INDEXABLE
-            and not {".git", "node_modules", "vendor"} & set(path.parts)
+            and not any(part.startswith(".") for part in path.relative_to(root).parts)
+            and not {"node_modules", "vendor", "testdata"} & set(path.parts)
         )
         reported = 0
         for line in run.facts.get("index_stdout", "").splitlines():
             found = re.search(r"files:?\s+(\d+)", line)
             if found:
                 reported = max(reported, int(found.group(1)))
+        said = run.facts.get("index_stderr", "")
+        warned = "matched no language" in said
         run.facts["files_on_disk"] = on_disk
         run.facts["files_reported"] = reported
+        run.facts["warned_about_skips"] = warned
         if on_disk == 0:
-            return True, "pass", "no files of a known suffix; nothing to claim"
+            return True, "pass", "empty tree; nothing to claim"
         share = reported / on_disk
         if share >= 0.5:
-            return True, "pass", f"{reported} of {on_disk} indexable files ({share:.0%})"
-        warned = "warning" in run.facts.get("index_stderr", "").lower()
+            return True, "pass", f"{reported} of {on_disk} files ({share:.0%})"
+        if warned:
+            return True, "pass", f"{reported} of {on_disk} ({share:.0%}) and said which suffixes"
         return (
             False,
-            "silent" if not warned else "false",
-            f"{reported} of {on_disk} ({share:.0%}) and "
-            + ("no warning" if not warned else "warned, but the share is this low"),
+            "silent",
+            f"{reported} of {on_disk} ({share:.0%}) and no word about the rest",
         )
 
-    record("index", "indexes most of what it could, or says why not", do_coverage)
+    record("index", "reads the tree, or says why not", do_coverage)
 
     # --- the answers ------------------------------------------------
     def answering(command: str, *args: str) -> Any:
@@ -391,6 +406,38 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
 
     record("index", "re-running over an unchanged tree changes nothing", do_reindex)
 
+    def do_repeatable() -> tuple[bool, str, str]:
+        """The same question, asked twice, answered the same way.
+
+        Nothing else here checks this, and every number this project
+        publishes is from a single run. It is not hypothetical: a rebuilt
+        BM25 index re-segments and breaks ties differently, which made a
+        no-op re-index change the answers until it was found — by a
+        different check, on one workspace, by luck.
+
+        Three questions rather than one, because a tie only shows up
+        where there are ties to break.
+        """
+        asked = ["database cleaner", "how does the connection get closed", "strategy"]
+        for question in asked:
+            first = wsindex("search", question, "-k", "10", cwd=home, env=env).stdout
+            again = wsindex("search", question, "-k", "10", cwd=home, env=env).stdout
+            if first != again:
+                where = next(
+                    (
+                        n
+                        for n, (a, b) in enumerate(
+                            zip(first.splitlines(), again.splitlines(), strict=False), start=1
+                        )
+                        if a != b
+                    ),
+                    0,
+                )
+                return False, "false", f"`{question}` differs at line {where} between two asks"
+        return True, "pass", f"{len(asked)} questions, identical answers twice"
+
+    record("search", "the same question twice gives the same answer", do_repeatable)
+
     return run
 
 
@@ -420,8 +467,10 @@ INDEXABLE = {
     ".xml",
     ".md",
 }
-"""Suffixes the language table claims. The coverage check counts these on
-disk and compares; anything outside is not a promise this makes."""
+"""Suffixes worth asking `explain` about, and nothing more.
+
+It used to be the coverage check's denominator, which made that check
+blind to exactly the failure it exists for — see `do_coverage`."""
 
 
 def protocol(runs: list[Run], seconds: float) -> str:

@@ -117,10 +117,22 @@ class Attempt:
 
 @dataclass
 class Task:
+    """One task, put to both workers.
+
+    Attributes:
+        reachable: Whether any file holding the answer was indexed at
+            all. A task about a file no grammar covers is a coverage
+            failure, not a cost one, and tier 2 counts those apart while
+            this used to fold them in — `pow-auth` is Elixir, indexes 30
+            of 423 files, and reported 0 against grep's 35, which had to
+            be subtracted by hand every time the result was quoted.
+    """
+
     question: str
     answers: tuple[str, ...]
     ours: Attempt
     theirs: Attempt
+    reachable: bool = True
 
 
 @dataclass
@@ -232,6 +244,24 @@ def mcnemar(ours: int, theirs: int) -> float:
     return min(2 * sum(math.comb(total, i) for i in range(fewer + 1)) / 2**total, 1.0)
 
 
+def indexed_paths(home: Path) -> set[str]:
+    """Every `repo/path` the store holds, for the reachability column.
+
+    Read from the store rather than asked of the binary: this classifies
+    a task, it does not answer one.
+    """
+    import lancedb
+
+    table = lancedb.connect(str(home / ".wsindex")).open_table("data")
+    rows = table.search().select(["repo", "path"]).limit(table.count_rows()).to_arrow()
+    return {
+        f"{repo}/{path}"
+        for repo, path in zip(
+            rows.column("repo").to_pylist(), rows.column("path").to_pylist(), strict=True
+        )
+    }
+
+
 def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     root = R.materialise(org, spec["repos"])
     home = CACHE / ".tier3" / org
@@ -243,11 +273,13 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
         wsindex("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
     print(f"  indexing {org}", flush=True)
     wsindex("index", cwd=home, env=env)
+    run = Run(org=org)
 
     harvested = json.loads((CORPUS / "harvested" / f"{org}.json").read_text(encoding="utf-8"))[
         "questions"
     ]
-    run = Run(org=org)
+    indexed = indexed_paths(home)
+    run.notes["indexed_files"] = len(indexed)
     for item in harvested:
         answers = {item["truth"], *item.get("also_valid", [])}
         question = item["text"]
@@ -257,6 +289,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
                 answers=tuple(sorted(answers)),
                 ours=wsindex_worker(question, answers, home, env, root),
                 theirs=grep_worker(question, answers, root),
+                reachable=bool(answers & indexed),
             )
         )
     return run
@@ -266,7 +299,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
     sha = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True
     ).stdout.strip()
-    every = [t for run in runs for t in run.tasks]
+    every = [t for run in runs for t in run.tasks if t.reachable]
     both = [t for t in every if t.ours.found and t.theirs.found]
     lines = [
         "# Tier 3 — does it save anybody anything?",
@@ -292,15 +325,17 @@ def protocol(runs: list[Run], seconds: float) -> str:
         "",
         "## Results",
         "",
-        "| Workspace | Tasks | ws found | grep found | only ws | only grep | p |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Workspace | Tasks | Reachable | ws found | grep found | only ws | only grep | p |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for run in runs:
-        only_ours = sum(1 for t in run.tasks if t.ours.found and not t.theirs.found)
-        only_rg = sum(1 for t in run.tasks if not t.ours.found and t.theirs.found)
+        live = [t for t in run.tasks if t.reachable]
+        only_ours = sum(1 for t in live if t.ours.found and not t.theirs.found)
+        only_rg = sum(1 for t in live if not t.ours.found and t.theirs.found)
         lines.append(
-            f"| `{run.org}` | {len(run.tasks)} | {sum(t.ours.found for t in run.tasks)} | "
-            f"{sum(t.theirs.found for t in run.tasks)} | {only_ours} | {only_rg} | "
+            f"| `{run.org}` | {len(run.tasks)} | {len(live)} | "
+            f"{sum(t.ours.found for t in live)} | "
+            f"{sum(t.theirs.found for t in live)} | {only_ours} | {only_rg} | "
             f"{mcnemar(only_ours, only_rg):.4f} |"
         )
     if both:

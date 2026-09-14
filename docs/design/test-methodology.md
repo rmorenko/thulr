@@ -220,3 +220,22 @@ through unnoticed, and the evidence for one is usually a surprise — a
 number that moved for no reason anybody can name. When one is found this
 document is amended, the amendment is dated, and the affected runs are
 repeated rather than reinterpreted.
+
+**A defect found in one place is looked for in every other.** This is a
+rule because it was broken twice. A control credited for being *concise*
+rather than correct was found and fixed in `why`; found and fixed again
+in the spelling question; and left standing in `refs` on symbols and on
+settings, where it was worse than unfair — the truth there is a search
+for four spellings and the control searches one of them, so every result
+the control returned was in the truth by construction and it could not
+be wrong. Two published verdicts rested on that before anybody swept.
+
+The same shape appeared in tier 1: the coverage check counted files
+against a list of suffixes wsindex claims to support, so a language it
+does not support was invisible to the check written to catch exactly
+that. A measurement that inherits the tool's blind spot cannot see the
+tool go blind, and both of these are that.
+
+So: when a defect is understood, name its *class* and search the other
+instruments for it before reporting anything. The search is cheap and
+the alternative is publishing a number twice.
