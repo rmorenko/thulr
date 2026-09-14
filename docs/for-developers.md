@@ -34,6 +34,12 @@ reranker sends the query and about forty candidate chunks per search —
 not your repository — and it is the line where this stops tying with grep
 and starts beating it 85 to 60.
 
+**What it saves, measured:** on 204 tasks drawn from the indexed
+projects' own issue trackers, reaching the answer took a median of
+**1 045 tokens of reading against grep's 9 449**, and less reading in 85
+of the 99 tasks both finished. That is the size of the pile each tool
+puts in front of you, counted the same way on both sides.
+
 **Two things here beat `grep` outright, and they are not the search.**
 Asking *why* a definition looks the way it does — walking its lines back
 to the commit that explains them — named a commit that really touched

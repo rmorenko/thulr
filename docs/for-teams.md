@@ -7,6 +7,13 @@ works in and answers questions about them with exact file and line
 numbers. It is one binary, no account, no per-seat cost, and by default
 it runs entirely on the developer's own machine.
 
+**What a developer stops doing:** on 204 tasks taken from the indexed
+projects' own issue trackers, reaching the answer took a median of
+1 045 tokens of reading against grep's 9 449 — about a ninth — and less
+reading in 85 of the 99 both finished. Counted as a fixed reading policy
+rather than as a person, so it is the size of the pile the tool hands
+over rather than anybody's cleverness.
+
 **That default is a posture with a price, and the price is measured.**
 On 154 questions taken from the issue trackers of the projects being
 indexed, the fully local default finds the right file in the top ten 65

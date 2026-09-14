@@ -45,12 +45,32 @@ Indexing costs minutes once (a 2 000-file repository in 37 seconds,
 whatever the corpus size. Nothing leaves the machine unless you
 explicitly configure a remote model — see [for-security.md](for-security.md).
 
-## What has not been measured, and it is the question you care about
+## What it costs to answer, which is the number you are here for
 
-**Whether an agent with wsindex beats the same agent with `grep`.** That
-comparison has not been run, and it is the one that matters: everything
-measured here ranks *hits*, and a rank is not a task finished with fewer
-tokens.
+**Reaching the same answer costs about a ninth of the reading.** Over 204
+tasks taken from the indexed projects' own issue trackers — the title of
+a closed issue, and the files the pull request that closed it changed —
+two workers were sent at each one under a single token budget. `grep`
+read a window around every match, the way `rg -C` shows it; wsindex read
+the line ranges it ranked. Both stopped when a file holding the answer
+was in front of them.
+
+|                                     |      wsindex |   grep |
+| ----------------------------------- | -----------: | -----: |
+| tasks found                         |          125 |    112 |
+| median tokens, on the 99 both found |    **1 045** |  9 449 |
+| mean                                |        3 277 | 25 443 |
+| cheaper                             | **85 of 99** |     14 |
+
+Read the median twice: that is what lands in your context window to get
+one answer.
+
+**What that is not.** The worker is a fixed reading policy, not a
+language model — an agent measures the model at least as much as the
+tool, and runs twice it reads different files. This measures the size of
+the pile each tool puts on the desk, which is the part the tool controls.
+A real agent that skims, gives up on a file after two lines and rewrites
+its query may do better with either.
 
 What *is* measured is the ranking, against `ripgrep` on 154 questions
 taken from the issue trackers of the indexed projects — nobody here wrote

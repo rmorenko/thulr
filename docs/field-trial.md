@@ -244,6 +244,47 @@ turns 23 of those into a top-ten answer, a hosted reranker 33. That is
 the half of real questions where ranking is the entire value, and it is
 also where this is furthest from finished.
 
+## How it is checked now
+
+The trial above was a one-off: a tester, a fortnight, and a document.
+What replaced it is three instruments in the repository, because a
+measurement nobody can re-run is a story.
+
+They are kept apart on purpose, and `docs/design/test-methodology.md`
+says why at length. A result from one says nothing about the next.
+
+- **Tier 1** (`scripts/tier1.py`) drives the shipped binary over the
+  pinned corpus and checks the *claims*: that a cited `file:line` exists,
+  that a run reporting success read the repository, that an index answers
+  the same after compaction, that re-indexing an unchanged tree changes
+  nothing. Fifteen checks across seven workspaces.
+- **Tier 2** (`scripts/tier2.py`) asks whether the answer is right, with
+  ground truth that exists independently of the tool — `git log -L` for
+  `why`, a four-spelling search for `refs` — and a control that is what
+  somebody would type instead.
+- **Tier 3** (`scripts/tier3.py`) asks whether any of it saves work: two
+  workers, one token budget, the same tasks, counted on what each has to
+  read before the answer is in front of them.
+
+Each writes a protocol into `docs/protocols/`, generated rather than
+typed, and not edited afterwards.
+
+What they found on their first real runs is the argument for having
+them. Tier 1 caught a 690-second no-op — an unchanged re-index of an
+11 786-file workspace taking 762 seconds against a documented promise of
+under a second — which had shipped that morning, survived 1 116 green
+unit tests, and is invisible on six of the seven workspaces. Tier 2 put
+the first number on `why` (200 of 204) and showed that `refs` on an
+ordinary symbol *loses* to `rg -w`. Tier 3 answered the question this
+project had never been able to answer.
+
+And they were wrong before they were right: tier 2's harness lied four
+ways and the methodology twice more, tier 3's accounting flattered its
+own tool by a factor of four hundred. Each was caught by a number
+disagreeing with the mechanism rather than by anything failing, which is
+why the order — run, check the method, *then* read the results — is
+written down as a rule.
+
 ## What happened next, and it changes the verdict above
 
 That paragraph was written as a consolation and turned out to be the
