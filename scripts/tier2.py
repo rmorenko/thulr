@@ -440,6 +440,74 @@ def config_keys(root: Path) -> list[str]:
     return names
 
 
+DUPE_PAIR = re.compile(r"^\s+([0-9.]+)\s+(\S+?):(\d+)\s+<->\s+(\S+?):(\d+)")
+
+
+def chunk_text(home: Path, where: str, line: int) -> str:
+    """The stored text of the chunk at `repo/path:line`, or empty."""
+    import lancedb
+
+    repo, _, path = where.partition("/")
+    table = lancedb.connect(str(home / ".wsindex")).open_table("data")
+    rows = (
+        table.search()
+        .where(
+            f"repo = '{repo}' AND path = '{path.replace(chr(39), chr(39) * 2)}' "
+            f"AND start_line = {line}"
+        )
+        .select(["text"])
+        .limit(1)
+        .to_arrow()
+    )
+    found = rows.column("text").to_pylist()
+    return str(found[0]) if found else ""
+
+
+def grade_dupes(home: Path, env: dict[str, str]) -> tuple[list[Graded], dict[str, Any]]:
+    """Are the pairs `dupes` reports really the same code?
+
+    No external ground truth exists for duplication, so this is the
+    honest second best: recompute the similarity a different way. `dupes`
+    compares token shingles; `difflib` compares character runs. Two
+    measures that agree are evidence; one measure agreeing with itself is
+    not.
+
+    The sample size is stated because it has to be — a number without a
+    denominator is not reported.
+    """
+    from difflib import SequenceMatcher
+
+    out = wsindex("dupes", "--limit", "200", cwd=home, env=env)
+    pairs = [DUPE_PAIR.match(line) for line in out.splitlines()]
+    found: list[Graded] = []
+    boilerplate = 0
+    for match in [m for m in pairs if m][:SAMPLE]:
+        claimed = float(match.group(1))
+        left = chunk_text(home, match.group(2), int(match.group(3)))
+        right = chunk_text(home, match.group(4), int(match.group(5)))
+        if not left or not right:
+            continue
+        agrees = SequenceMatcher(None, left, right).ratio()
+        # What the pair is made of matters as much as whether it is real:
+        # a licence header repeated in four hundred files is a true
+        # duplicate and a useless report.
+        lines = [x.strip() for x in left.splitlines() if x.strip()]
+        prose = sum(1 for x in lines if x.startswith(("//", "#", "*", "/*")))
+        imports = sum(1 for x in lines if x.startswith(("import", "require", "use ", "from ")))
+        if lines and (prose + imports) / len(lines) > 0.6:
+            boilerplate += 1
+        found.append(
+            Graded(
+                "dupes",
+                f"{match.group(2)}:{match.group(3)}",
+                agrees >= 0.5,
+                "n/a",
+                detail=f"claimed {claimed:.2f}, difflib {agrees:.2f}",
+            )
+        )
+    return found, {"sampled": len(found), "boilerplate": boilerplate}
+
+
 def indexed_paths(home: Path) -> set[str]:
     """Every `repo/path` the store actually holds.
 
@@ -494,7 +562,15 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     run.graded += grade_refs("refs/setting", keys[:SAMPLE], root, home, env, indexed)
     print("  refs across spellings", flush=True)
     run.graded += grade_spelling(keys, root, home, env, indexed)
-    run.notes["deps"] = wsindex("deps", cwd=home, env=env)
+    print("  dupes", flush=True)
+    graded, notes = grade_dupes(home, env)
+    run.graded += graded
+    run.notes["dupes"] = notes
+    # `deps` has no mechanical grading — whether an undeclared pair is a
+    # real build problem or a fork sharing a vocabulary is a judgement,
+    # and the methodology says to sample and say so rather than invent a
+    # rule. The output goes into the protocol for a person to read.
+    run.notes["deps"] = wsindex("deps", "--limit", "8", cwd=home, env=env)
     return run
 
 
@@ -510,6 +586,78 @@ def mcnemar(ours: int, theirs: int) -> float:
         return 1.0
     fewer = min(ours, theirs)
     return min(2 * sum(math.comb(total, i) for i in range(fewer + 1)) / 2**total, 1.0)
+
+
+GATE = "the tool answers more than its control, significantly, on the reachable rows"
+
+TOUCHES = {
+    "why": "README `## Asking why, and who`; for-developers; for-agents",
+    "refs/symbol": "README `refs` section; for-agents tool list",
+    "refs/setting": "for-security; for-developers; README `refs` section",
+    "refs/spelling": "README `refs` section; for-agents tool list",
+}
+"""Which documented claims each kind is evidence about.
+
+Declared here rather than worked out after a run, so a protocol can say
+what it bears on without anybody choosing that once the numbers are in.
+It cannot say whether a claim is now wrong — that is a judgement — but
+it can refuse to let one be quietly missed."""
+
+
+def interpretation(runs: list[Run]) -> list[str]:
+    """What the numbers say, mechanically, and where judgement begins.
+
+    A generator cannot decide whether a result means a product should
+    change. It can state the direction, whether the gate declared before
+    the run was cleared, and what the run does not cover — and it can
+    name the documents each kind is evidence about, so a claim is not
+    quietly left standing. The methodology asks a protocol for an
+    interpretation; this is the half a machine can be trusted with, and
+    the rest is marked as needing a person.
+    """
+    every = [g for run in runs for g in run.graded]
+    lines = ["", "## Interpretation", "", f"Gate: _{GATE}_.", ""]
+    for kind in ("why", "refs/symbol", "refs/setting", "refs/spelling"):
+        live = [g for g in every if g.kind == kind and g.reachable]
+        if not live:
+            continue
+        ours = sum(g.ours for g in live)
+        theirs = sum(g.control == "found" for g in live)
+        only_ours = sum(1 for g in live if g.ours and g.control != "found")
+        only_rg = sum(1 for g in live if not g.ours and g.control == "found")
+        p = mcnemar(only_ours, only_rg)
+        # Always "ours N, control M", never a bare pair: a verdict whose
+        # numbers have to be decoded is a verdict that will be misread.
+        pairs = f"ours {only_ours}, control {only_rg}, p = {p:.4f}"
+        if only_ours == only_rg:
+            verdict = f"**tied** with its control ({pairs})"
+        elif p >= 0.05:
+            way = "ahead" if only_ours > only_rg else "behind"
+            verdict = f"**{way}, not significantly** ({pairs})"
+        elif only_ours > only_rg:
+            verdict = f"**clears the gate** ({pairs})"
+        else:
+            verdict = f"**loses to its control** ({pairs})"
+        unreachable = sum(1 for g in every if g.kind == kind and not g.reachable)
+        lines += [
+            f"- `{kind}`: {ours} of {len(live)} reachable against {theirs}; {verdict}."
+            + (f" {unreachable} unreachable, excluded." if unreachable else ""),
+            f"  Evidence about: {TOUCHES.get(kind, 'nothing documented')}.",
+        ]
+    lines += [
+        "",
+        "**What this does not say.** `why` is scored on the commits named for",
+        "the definition it found, so a wrong definition is charged to `search`.",
+        "Unreachable rows are counted out rather than in, because a file no",
+        "grammar covers is a coverage failure and folding it in taxes every",
+        "configuration equally and invisibly. Sample sizes are per workspace",
+        "and stated in the table above; none of these is a population.",
+        "",
+        "**Needs a person.** Whether a commit named was the one a reader",
+        "wanted, and whether any claim above should now change, are",
+        "judgements this harness does not make.",
+    ]
+    return lines
 
 
 def protocol(runs: list[Run], seconds: float) -> str:
@@ -560,6 +708,40 @@ def protocol(runs: list[Run], seconds: float) -> str:
         "clothes, and folding it in taxes every configuration equally and",
         "invisibly. `p` is McNemar's exact test on the discordant pairs,",
         "which is the only thing the totals cannot say.",
+    ]
+    dupes = [g for run in runs for g in run.graded if g.kind == "dupes"]
+    if dupes:
+        agreed = sum(g.ours for g in dupes)
+        boiler = sum(int(run.notes.get("dupes", {}).get("boilerplate", 0)) for run in runs)
+        lines += [
+            "",
+            "## `dupes`, checked a second way",
+            "",
+            "No external ground truth exists for duplication, so the pairs it",
+            "reports were re-scored with `difflib`, which compares character runs",
+            "where `dupes` compares token shingles. Two measures agreeing is",
+            "evidence; one measure agreeing with itself is not.",
+            "",
+            f"- **{agreed} of {len(dupes)}** sampled pairs reach 0.5 by the second measure.",
+            f"- **{boiler} of {len(dupes)}** are mostly comment or import lines — true"
+            " duplicates and useless ones, which is a different complaint from being"
+            " wrong.",
+        ]
+    lines += [
+        "",
+        "## `deps`, for a person to read",
+        "",
+        "Whether an undeclared pair is a missing dependency or two repositories",
+        "sharing a vocabulary is a judgement, not a rule, so this harness",
+        "reports and does not grade.",
+        "",
+    ]
+    for run in runs:
+        said = str(run.notes.get("deps", "")).strip()
+        if said:
+            lines += [f"### `{run.org}`", "", "```", said, "```", ""]
+    lines += interpretation(runs)
+    lines += [
         "",
         "## Raw rows",
         "",
