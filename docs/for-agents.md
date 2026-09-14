@@ -81,11 +81,11 @@ you wire anything up.
 
 **Two answers here do beat `grep`, and both are now measured.** `why` —
 a definition to the commits that wrote it — named a commit that really
-touched those lines 200 times of 204, against `git log -S` at 183,
-winning the discordant pairs 19 to 2. And `refs` reaching a setting
+touched those lines 161 times of 164, against `git log -S` at 146,
+winning the discordant pairs 16 to 1. And `refs` reaching a setting
 spelled one way in a config and another in code: 64 of 76, with the
 control at **zero**, because no flag `rg` has crosses that gap. `refs`
-on a plain symbol is the opposite — 184 to grep's 238 — so ask it about
+on a plain symbol is the opposite — 124 to grep's 236 — so ask it about
 settings and history, not about names you already know.
 
 The number an agent should care about most: of those 154 questions,

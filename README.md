@@ -566,11 +566,11 @@ Two commands read what indexing recorded.
 `why` walks from a definition to the commits that wrote its lines, and
 prints their reasoning — which is usually the only place it exists.
 
-**This is the strongest thing measured in this repository.** Over 204
+**This is the strongest thing measured in this repository.** Over 164
 answerable questions across seven workspaces it named a commit that had
-really touched those lines **200 times**. The control — `git log -S`,
-what a person reaches for — managed 183, and lost the discordant pairs
-19 to 2. What a codebase knows about itself and nothing else records is
+really touched those lines **161 times**. The control — `git log -S`,
+what a person reaches for — managed 146, and lost the discordant pairs
+16 to 1. What a codebase knows about itself and nothing else records is
 in its history, and this is the path to it:
 
 ```
@@ -609,11 +609,12 @@ graph is still deferred. What is here is the cheaper claim, this name
 occurs here, which is a search result rather than a fact about calls.
 
 **Measured, `refs` on a symbol loses to `grep` and should not be the
-reason you install this.** Over 261 answerable questions across seven
-workspaces — names drawn from the source, not from what the tool chose
-to show — it found the right file 184 times against `rg -w`'s 238, and
-lost the discordant pairs 11 to 65. It is competing with grep on grep's
-best case: you already know the exact name.
+reason you install this.** Asked on 240 answerable questions across
+seven workspaces whether it reaches the file where a symbol is
+*defined* — names drawn from the source, not from what the tool chose to
+show — it did so 124 times against `rg -w`'s 236, losing the discordant
+pairs 1 to 113. It is competing with grep on grep's best case: you
+already know the exact name.
 
 The case it wins is one spelling of a setting reaching another, because
 that is the one `grep` cannot serve at all:

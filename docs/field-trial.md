@@ -274,7 +274,7 @@ them. Tier 1 caught a 690-second no-op — an unchanged re-index of an
 11 786-file workspace taking 762 seconds against a documented promise of
 under a second — which had shipped that morning, survived 1 116 green
 unit tests, and is invisible on six of the seven workspaces. Tier 2 put
-the first number on `why` (200 of 204) and showed that `refs` on an
+the first number on `why` (161 of 164) and showed that `refs` on an
 ordinary symbol *loses* to `rg -w`. Tier 3 answered the question this
 project had never been able to answer.
 

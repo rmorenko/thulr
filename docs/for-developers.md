@@ -43,13 +43,14 @@ puts in front of you, counted the same way on both sides.
 **Two things here beat `grep` outright, and they are not the search.**
 Asking *why* a definition looks the way it does — walking its lines back
 to the commit that explains them — named a commit that really touched
-those lines 200 times of 204, where `git log -S` managed 183. And
+those lines 161 times of 164, where `git log -S` managed 146. And
 reaching a setting written `max_retries` in a yaml from the
 `MaxRetries` in the code that reads it: 64 of 76, with `rg` scoring
 **zero**, because no flag it has crosses that gap.
 
 The mirror of that, said plainly because you will otherwise assume it:
-asking `refs` about an ordinary symbol **loses** to `rg -w`, 184 to 238.
+asking `refs` where an ordinary symbol is defined **loses** to `rg -w`,
+124 to 236.
 If you already know the exact name, grep is the better tool and this one
 has nothing to add.
 
