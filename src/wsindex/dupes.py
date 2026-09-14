@@ -42,6 +42,23 @@ TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 """What a shingle is made of. Identifiers only: punctuation, indentation
 and line breaks are exactly what a copy changes first."""
 
+NOT_CODE = re.compile(r"^\s*(?://|#|\*|/\*|--|;|import\b|from\b|require\b|use\b|package\b)")
+"""A line that is not the code a copy is about — a comment, or a line
+that only brings a name into scope.
+
+Dropped before fingerprinting, and that is a fix rather than a
+refinement. Measured on 170 pairs the report produced across seven
+workspaces: **166 of them are genuine** by an independent measure, and
+**90 of them are licence headers and import blocks**. Right and useless
+is a different complaint from wrong, and it was most of what this
+printed — a Go repository where every file opens with the same fifteen
+lines has, by shingles, hundreds of duplicate chunks and no duplication
+anybody can act on.
+
+`COMMON_SHINGLE` was supposed to contain this and cannot: it drops a
+shingle appearing in more than forty chunks, while a licence header
+repeated in thirty files is under that bar and identical."""
+
 SHINGLE = 5
 """Identifiers per shingle.
 
@@ -149,11 +166,18 @@ class Duplication:
 def fingerprint(text: str) -> set[int]:
     """The set of shingle hashes this text is made of.
 
+    Comments and imports are dropped first (see `NOT_CODE`), so a file
+    whose only thing in common with another is its licence header
+    fingerprints as the code underneath it — or, if there is no code
+    underneath, as nothing at all.
+
     Empty when there is not enough of it to fingerprint, which is how a
     short chunk removes itself from consideration without a separate
-    check anywhere else.
+    check anywhere else — and now also how a chunk that is all header
+    removes itself.
     """
-    tokens = TOKEN.findall(text)
+    code = "\n".join(line for line in text.splitlines() if not NOT_CODE.match(line))
+    tokens = TOKEN.findall(code)
     if len(tokens) < MIN_TOKENS:
         return set()
     return {

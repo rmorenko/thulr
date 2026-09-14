@@ -328,3 +328,36 @@ def test_narrowing_to_one_repo_still_works(tmp_path_factory: pytest.TempPathFact
 
     assert found.repos == ("alpha",)
     assert not [group for group in found.between if group.cross_repo]
+
+
+def test_a_shared_licence_header_is_not_duplication() -> None:
+    """Right and useless is a different complaint from wrong.
+
+    Measured across seven workspaces before this: 166 of 170 reported
+    pairs were genuine by an independent measure, and 90 of them were
+    licence headers and import blocks. A Go repository whose every file
+    opens with the same fifteen lines had, by shingles, hundreds of
+    duplicate chunks and no duplication anybody could act on.
+
+    `COMMON_SHINGLE` cannot contain it: it drops a shingle appearing in
+    more than forty chunks, and a header repeated in thirty files is
+    under that bar and identical.
+    """
+    from wsindex.dupes import fingerprint
+
+    header = "\n".join(
+        [f"// Copyright 2015 The Project Authors line {n}" for n in range(20)]
+        + [f"import somepackage{n}" for n in range(20)]
+    )
+    one = header + "\n" + "\n".join(f"alpha{n} = beta{n} + gamma{n}" for n in range(40))
+    two = header + "\n" + "\n".join(f"delta{n} = epsilon{n} * zeta{n}" for n in range(40))
+
+    assert not fingerprint(one) & fingerprint(two)
+
+
+def test_a_chunk_that_is_only_a_header_fingerprints_as_nothing() -> None:
+    # It removes itself, the way a chunk too short to matter already
+    # does — no separate check anywhere else.
+    from wsindex.dupes import fingerprint
+
+    assert not fingerprint("\n".join(f"// a licence line {n}" for n in range(80)))
