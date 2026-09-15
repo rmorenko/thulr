@@ -12,12 +12,14 @@ By default that all happens on your machine. The model runs in your
 process, the index is a file you can delete, and a warm search opens zero
 sockets. There is no account and no server to run.
 
-**What that default costs you is measured, and you should know it before
-you install anything.** On 154 questions taken from the issue trackers of
-the projects being indexed — real questions, in the words of people who
-had never heard of this tool — the fully local default puts the right
-file in the top ten 65 times. `ripgrep` manages 60. That is a tie with
-grep — inside noise — and nobody installs a tool to tie with grep.
+**What that default does and does not buy is measured, and you should
+know both before you install anything.** On 154 questions taken from the
+issue trackers of the projects being indexed — real questions, in the
+words of people who had never heard of this tool — the fully local
+default puts the right file in the top ten 65 times. `ripgrep` manages
+60\. That is a tie, inside noise: on *ranking*, staying local buys nothing
+over grep. What it does buy is two paragraphs down, and it is not
+ranking.
 
 What changes it:
 

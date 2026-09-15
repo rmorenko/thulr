@@ -46,17 +46,23 @@ cheaper on 85 of them. The worker is a fixed reading policy rather than a
 language model, so this measures the size of the pile each tool hands
 over — the part the tool controls — and not an agent's judgement.
 
-**So locality is a setting with a price, not the product.** It is a real
-setting and a defensible one: nothing leaves unless a config file says
-so, in as many words, and [for-security.md](docs/for-security.md) lists
-every line that can change that. But the version of this tool that beats
-`grep` is not the version that sends nothing.
+**So local is not the weak mode, it is the cheap one.** Everything above
+the network line was measured with nothing leaving the machine: the tie
+with grep on hits, the tenfold cut in reading, and the two questions
+below that grep cannot answer at all. Worth naming exactly what a hosted
+model buys, because it is one thing — better *ranking*, 85 or 109 against
+60\. It does not buy the token economy or the two questions; those are
+already there without it. Nothing leaves unless a config file says so, in
+as many words, and [for-security.md](docs/for-security.md) lists every
+line that can change that.
 
 **Two questions it answers that `grep` cannot**, at any setting and with
-no network: where a *setting* is used, bridging `max_retries` in a yaml
-to `MaxRetries` in the code that reads it — which neither `rg -w` nor
-`rg -i` can do — and *why* a definition looks the way it does, by walking
-blame to the commit message that explains it.
+no network. Where a name is spelled differently on the two sides of a
+boundary — `max_retries` in a yaml, `MaxRetries` in the code that reads
+it — which neither `rg -w` nor `rg -i` can do: right on 64 of 76 against
+grep's **0**. And *why* a definition looks the way it does, by walking
+blame to the commit message that explains it: right on 161 of 164 against
+`git log -S`'s 146.
 
 ## Quickstart
 
