@@ -346,6 +346,14 @@ def best_control(root: Path, question: str, truth: str) -> tuple[str, int, str]:
     best = ("missed", 0, "")
     for term in terms(question):
         outcome, count = control(root, f"rg -i -F {shlex.quote(term)}", truth)
+        if outcome not in rank:
+            # There is no ripgrep to ask. This used to raise a KeyError
+            # partway through a run, which at least stopped it; the worse
+            # shape was one line away, because the report counts
+            # `control == "found"` and would have published "ripgrep
+            # found 0 of 154" — a control that lost every question
+            # without being asked one. `main` refuses the run instead.
+            return outcome, 0, ""
         if (rank[outcome], count) < (rank[best[0]], best[1] if best[2] else 10**9):
             best = (outcome, count, term)
     return best
@@ -552,12 +560,30 @@ def _grade_harvested(
     return space
 
 
+def rg_version() -> str:
+    """Which ripgrep answered, for a reader trying to reproduce this."""
+    if RG is None:
+        return "no ripgrep"
+    done = subprocess.run([RG, "--version"], capture_output=True, text=True)
+    return done.stdout.splitlines()[0].strip() if done.stdout else "ripgrep, version unknown"
+
+
 def report_on(spaces: list[Workspace]) -> str:
     every = [g for space in spaces for g in space.graded]
     lines = ["# Relevance report", ""]
     lines.append(
         f"_{time.strftime('%Y-%m-%d %H:%M')}, {len(every)} questions, "
-        f"{len(spaces)} workspaces, pinned corpus._"
+        # The control's version, because it is not pinned and it moves.
+        # The corpus is pinned by sha and the threshold is a constant, so
+        # for a long time the only unpinned thing in the comparison was
+        # ripgrep itself — and it turned out to matter: rebuilding the
+        # table on 15.2.0 put the control at 71 where an earlier run had
+        # published 60, on the same questions and the same commits. A
+        # newer ripgrep returns tighter sets, and `found` means the
+        # answer is there *and* the set is at most twenty files, so
+        # questions moved from drowned to found without anybody changing
+        # a query. A control nobody can reproduce is not a control.
+        f"{len(spaces)} workspaces, pinned corpus, {rg_version()}._"
     )
     if RG is None:
         lines += ["", "**No ripgrep on this machine — the control did not run.**"]
@@ -709,6 +735,18 @@ def main() -> int:
         help="Fail if any class answers fewer questions than the baseline",
     )
     args = parser.parse_args()
+    if RG is None:
+        # Refused rather than degraded. Every hit rate in this report is
+        # read against ripgrep's, and a report whose control column is
+        # blank is not a weaker report — it is a set of numbers with
+        # nothing to be better than. Named the way an unset token is,
+        # rather than left to surface as an empty column.
+        print(
+            "no ripgrep on PATH, and every number here is read against it — "
+            "install it or point $WSINDEX_RG at the binary",
+            file=sys.stderr,
+        )
+        return 2
 
     corpus = json.loads((CORPUS / "corpus.json").read_text(encoding="utf-8"))
     wanted = {org: c for org, c in corpus.items() if args.full or c["tier"] == "routine"}
