@@ -129,14 +129,37 @@ commits out of ten leaves six. Three times k is enough for the worst case
 measured — a top ten that was entirely history — and the store returning
 thirty rows instead of ten is not what a search spends its time on."""
 
-FUSION_DEPTH = 5
-"""How many times `k` each arm fetches before they are fused.
+RETRIEVAL_WIDTH = 2
+"""How much wider than the caller asked each arm retrieves.
+
+`k` was doing two jobs — how deep to look and how much to return — and
+they are not the same number. What comes back is what somebody then has
+to read, so it should stay small; how far the arms reach before fusion
+costs one store query and nothing a caller sees.
+
+Measured by sweeping this and `FUSION_DEPTH` over 154 harvested
+questions, which had never been done: the shipped setting came **31st of
+36**. Retrieving at twice the requested depth and fusing ten times
+deeper puts the answer in the top ten for 78 against 65 — 15 questions
+gained, 2 lost, p = 0.0023 — and in the top three for 51 against 47.
+The caller still gets `k`.
+
+Not a lone spike: every combination reaching twice as wide scored 74 to
+78, every one at the old width 55 to 75. The mechanism is visible in
+that — deeper pools mean more disagreement between the arms, and
+disagreement is what fusion has to work with."""
+
+FUSION_DEPTH = 10
+"""How many times the retrieval width the lexical arm fetches.
 
 Fusion can only promote what an arm returned, and the whole point is
 that the two arms disagree: measured on 154 harvested questions, the
 answer was in the vector top ten for 55 and in ripgrep's output for 60,
 with only 28 in both. Fetching just `k` from each would throw away most
-of the disagreement before there was anything to fuse."""
+of the disagreement before there was anything to fuse.
+
+Was 5, on no measurement at all. See `RETRIEVAL_WIDTH` for the sweep
+that set both."""
 
 RRF_K = 60
 """The constant in reciprocal rank fusion, at its usual value.
@@ -825,19 +848,24 @@ class Pipeline:
         # ~4 ms; a CLI never notices and a server cannot do without it.
         self.store.refresh()
         n = _CANDIDATE_MULTIPLIER if self.reranker else _QUOTA_MULTIPLIER
+        # How deep to look, which is not how much to return: everything
+        # below still cuts to `k`, and only the reach changes.
+        wide = k * RETRIEVAL_WIDTH
         all_hits: list[Hit] = []
         lexical: list[Hit] = []
         hybrid = self.config.hybrid
         for r in repos:
             try:
-                hits = self.store.search(dataset_name=r.id, query=query, k=k * n, filters=filters)
+                hits = self.store.search(
+                    dataset_name=r.id, query=query, k=wide * n, filters=filters
+                )
             except ValueError:
                 continue
             all_hits.extend(hits)
             if hybrid:
                 lexical.extend(
                     self.store.lexical(
-                        dataset_name=r.id, query=query, k=k * FUSION_DEPTH, filters=filters
+                        dataset_name=r.id, query=query, k=wide * FUSION_DEPTH, filters=filters
                     )
                 )
         fused = bool(hybrid and lexical)

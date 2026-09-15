@@ -32,6 +32,7 @@ from wsindex.pipeline import (
     _CANDIDATE_MULTIPLIER,
     _QUOTA_MULTIPLIER,
     RERANK_BUDGET,
+    RETRIEVAL_WIDTH,
     FullPass,
     Pipeline,
 )
@@ -298,16 +299,19 @@ def test_pipeline_fetches_k_times_multiplier_with_reranker(
 
     Pipeline(store=spied, state_dir=state_dir, reranker=FakeReranker()).search(PY_TEXT, k=3)
     _, kwargs = spied.search.call_args
-    assert kwargs["k"] == 3 * _CANDIDATE_MULTIPLIER
+    assert kwargs["k"] == 3 * RETRIEVAL_WIDTH * _CANDIDATE_MULTIPLIER
 
-    # There are two reasons to ask for more than k now, and the reranker
-    # is only the louder one: the commit quota also needs spares, or
+    # There are three reasons to ask for more than k now, and the
+    # reranker is only the louder one. The commit quota needs spares, or
     # capping history at two in ten would return eight hits instead of
-    # ten. A plain search over-fetches by the smaller factor.
+    # ten. And retrieval reaches wider than the caller asked, because how
+    # deep to look and how much to return stopped being one number: the
+    # sweep that set `RETRIEVAL_WIDTH` moved hit@10 from 65 to 79 on 154
+    # harvested questions without changing what comes back.
     spied.reset_mock()
     Pipeline(store=spied, state_dir=state_dir).search(PY_TEXT, k=3)
     _, kwargs_plain = spied.search.call_args
-    assert kwargs_plain["k"] == 3 * _QUOTA_MULTIPLIER
+    assert kwargs_plain["k"] == 3 * RETRIEVAL_WIDTH * _QUOTA_MULTIPLIER
 
 
 # --- repo scope and filter passthrough ------------------------------------
@@ -880,17 +884,23 @@ def test_a_language_nobody_claims_is_reported_not_passed_over(
     # it told the reader nothing; `status` then showed three healthy
     # repos. Skipping a `LICENSE` is policy and not news. Skipping a
     # *language* is, and nothing said so.
+    #
+    # Written with Elixir, because that was the language it happened to.
+    # Elixir has a grammar now — the 50 harvested questions it made
+    # unreachable were what bought it — so the case is spelled in Swift,
+    # which is today's version of the same silence. The warning is about
+    # any language nobody claims, not about that one.
     source = tmp_path / "repo1" / "src"
     for n in range(12):
-        (source / f"mod{n}.ex").write_text(f"defmodule M{n} do\nend\n")
-    (source / "mix.exs").write_text("defmodule Mix do\nend\n")
+        (source / f"mod{n}.swift").write_text(f"struct M{n} {{}}\n")
+    (source / "Package.swiftpm").write_text("// manifest\n")
     commit(tmp_path / "repo1")
 
     report = pipeline.index()
 
     assert report.mostly_unclaimed
     assert report.unclaimed_files == 13
-    assert dict(report.unclaimed) == {".ex": 12, ".exs": 1}
+    assert dict(report.unclaimed) == {".swift": 12, ".swiftpm": 1}
 
 
 def test_the_odd_unclaimed_file_is_not_worth_a_warning(

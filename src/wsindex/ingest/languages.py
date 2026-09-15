@@ -26,6 +26,7 @@ from wsindex.ingest.ast import (
     configs,
     cpp,
     csharp,
+    elixir,
     go,
     html,
     java,
@@ -431,6 +432,16 @@ BUILTIN_LANGUAGES: tuple[LanguageSpec, ...] = (
         # the package also ships a tag-less variant we do not want.
         grammar=GrammarSpec(module="tree_sitter_php", getter="language_php"),
         spans=php.spans,
+    ),
+    LanguageSpec(
+        name="elixir",
+        kind=Kind.CODE,
+        # `.exs` is a script rather than a compiled module — `mix.exs`,
+        # migrations, tests — and it is the same language read by the
+        # same grammar, so it is the same spec.
+        suffixes=(".ex", ".exs"),
+        grammar=GrammarSpec(module="tree_sitter_elixir", getter="language"),
+        spans=elixir.spans,
     ),
     LanguageSpec(
         name="ruby",

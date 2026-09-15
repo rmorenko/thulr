@@ -697,6 +697,80 @@ def test_php_braced_namespace_is_descended_into() -> None:
     assert any(c.symbol == "f" for c in _chunk(code, lang="php"))
 
 
+ELIXIR = """\
+defmodule Pow.Store.Cache do
+  @moduledoc "Not attached to anything below it."
+
+  use GenServer
+
+  @doc "Fetch a value, or nil when the key has expired."
+  @spec get(keyword(), binary()) :: any()
+  def get(config, key) do
+    table_get(config, key)
+  end
+
+  # A detached comment.
+
+  defp table_get(config, key) do
+    :ets.lookup(table_name(config), key)
+  end
+
+  defmacro __using__(_opts) do
+    quote do: :ok
+  end
+
+  defmodule Inner do
+    def deep(x), do: x
+  end
+end
+"""
+
+
+@needs_grammar("elixir")
+def test_elixir_definitions_are_macro_calls_qualified_by_their_modules() -> None:
+    got = [(c.symbol, c.node_type) for c in _chunk(ELIXIR, lang="elixir")]
+    symbols = [symbol for symbol, _ in got if symbol]
+    assert symbols == [
+        "Pow.Store.Cache.get",
+        "Pow.Store.Cache.table_get",  # `defp`: private, and still indexed
+        "Pow.Store.Cache.__using__",
+        "Pow.Store.Cache.Inner.deep",  # a module inside a module, joined once
+    ]
+    # Every one of them is the same node type, which is the whole
+    # difficulty of this language: `def` is not a node, it is a call.
+    assert {node_type for symbol, node_type in got if symbol} == {"call"}
+
+
+@needs_grammar("elixir")
+def test_elixir_attaches_doc_and_spec_but_not_moduledoc() -> None:
+    chunks = {c.symbol: c for c in _chunk(ELIXIR, lang="elixir") if c.symbol}
+    get = chunks["Pow.Store.Cache.get"]
+    # `@doc` and `@spec` sit inside the function's chunk: the sentence
+    # that describes a function is the most searchable thing about it,
+    # and filing it separately is how a search stops finding it.
+    assert "Fetch a value" in get.text
+    assert "@spec get(" in get.text
+    # `@moduledoc` describes the module and stays out of the first
+    # function that happens to follow it.
+    assert "Not attached" not in get.text
+
+
+@needs_grammar("elixir")
+def test_elixir_detached_comment_does_not_join_the_definition_below() -> None:
+    chunks = {c.symbol: c for c in _chunk(ELIXIR, lang="elixir") if c.symbol}
+    # A blank line between them is Elixir's own rule for "documents
+    # nothing in particular", and `ExDoc` reads it the same way.
+    assert "A detached comment" not in chunks["Pow.Store.Cache.table_get"].text
+
+
+@needs_grammar("elixir")
+def test_elixir_covers_every_non_blank_line() -> None:
+    chunks = _chunk(ELIXIR, lang="elixir")
+    covered = {line for c in chunks for line in range(c.start_line, c.end_line + 1)}
+    non_blank = {i for i, line in enumerate(ELIXIR.splitlines(), 1) if line.strip()}
+    assert non_blank <= covered
+
+
 RUBY = """\
 require "json"
 
