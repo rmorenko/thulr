@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -84,20 +85,39 @@ the tools are listed, and the first call stops for a permission that
 nothing in a headless run can grant — which would have measured wsindex
 by never letting it answer."""
 
-ARMS = ("without", "legacy", "new")
+ARMS = ("without", "local", "remote")
 """Three arms in one run, because the agent's spread between runs is
-wider than the effect being measured. The same twelve tasks gave the
+wider than the effect being measured: the same twelve tasks gave the
 **unchanged** control 36 743 mean tokens one evening and 51 415 the
-next — a 40% swing on code nobody had touched — so a wording change
-compared across two runs measures the evening. Here `legacy` and `new`
-differ in nothing but the text the MCP server hands the agent, and
-`without` has no wsindex at all: one evening, one task list, one model."""
+next, so anything compared across two runs measures the evening.
 
-LEGACY = SCRATCH / "legacy-src"
-"""wsindex as committed, shadowing the editable install via PYTHONPATH.
-The previous wording lives in git rather than behind a flag in the
-shipped server, because an experiment should not leave scaffolding in
-the product."""
+`remote` exists because every agent measurement so far ran on the local
+default — the one configuration already measured to *tie* ripgrep, 65
+against 60 at depth ten. A hosted embedder takes that to 109. Handing
+the agent the weakest setting and concluding the tool does not help is
+not a conclusion about the tool."""
+
+REMOTE = {
+    "model": "voyage-code-4",
+    "dim": 1024,
+    "provider": "remote",
+    "url": "https://api.voyageai.com/v1/embeddings",
+    "token_env": "VOYAGE_API_KEY",
+    "input_types": True,
+}
+"""What the `remote` arm writes into the workspace — the same six lines
+a team would type, so what is graded is what ships. `token_env` names a
+variable and never holds a key; the value reaches the indexer and the
+MCP server through the environment they inherit, and is written nowhere."""
+
+WORKSPACE_PROMPT = """A user filed this issue against the `{repo}` repository,
+which is one of several checked out in this working directory:
+
+    {title}
+
+Find what causes it and fix it by editing the files here. Make the
+smallest change that addresses the issue. Do not write tests, do not
+commit, and do not explain at length — the edit is the answer."""
 
 PROMPT = """A user filed this issue against this repository:
 
@@ -197,7 +217,7 @@ def merge_sha(owner_repo: str, number: str) -> str | None:
     return sha or None
 
 
-def run_agent(where: Path, title: str, mcp: Path | None, keep: Path) -> Attempt:
+def run_agent(where: Path, prompt: str, mcp: Path | None, keep: Path) -> Attempt:
     """One headless agent, in one working tree, reporting its own bill.
 
     `stream-json` rather than `json`: the latter returns only the closing
@@ -210,7 +230,7 @@ def run_agent(where: Path, title: str, mcp: Path | None, keep: Path) -> Attempt:
     argv = [
         str(CLAUDE),
         "-p",
-        PROMPT.format(title=title),
+        prompt,
         "--tools",
         ",".join(TOOLS),
         "--allowedTools",
@@ -284,9 +304,30 @@ def run_agent(where: Path, title: str, mcp: Path | None, keep: Path) -> Attempt:
     )
 
 
-def grade(attempt: Attempt, where: Path, truth: dict[str, set[int]]) -> Attempt:
-    """What the agent changed, against what the maintainers changed."""
-    changed = touched(git("diff", "--unified=0", cwd=where))
+def grade(
+    attempt: Attempt,
+    where: Path,
+    truth: dict[str, set[int]],
+    *,
+    repos: list[str] | None = None,
+    task_repo: str = "",
+) -> Attempt:
+    """What the agent changed, against what the maintainers changed.
+
+    In a workspace the truth is still spelled in the task repository's
+    own paths, so edits there keep their bare path and edits in a
+    sibling are prefixed with the repository they landed in — a file
+    that matches by name in the wrong repository is not the answer.
+    """
+    if repos:
+        changed: dict[str, set[int]] = {}
+        for repo in repos:
+            if not (where / repo / ".git").exists():
+                continue
+            for path, lines in touched(git("diff", "--unified=0", cwd=where / repo)).items():
+                changed[path if repo == task_repo else f"{repo}/{path}"] = lines
+    else:
+        changed = touched(git("diff", "--unified=0", cwd=where))
     attempt.files = tuple(sorted(changed))
     attempt.lines = sum(len(v) for v in changed.values())
     attempt.hit_file = bool(set(changed) & set(truth))
@@ -310,36 +351,60 @@ def prepare(org: str, repo: str, sha: str, label: str) -> Path | None:
     return where if (where / ".git").exists() else None
 
 
-def legacy_source() -> Path:
-    """The committed wsindex source, for the arm with the old wording.
+def at_the_time(source: Path, when: str) -> str:
+    """The commit a sibling repository was on at a given moment.
 
-    `git archive` rather than a second checkout: only `mcp_server.py`
-    differs from the working tree, so the two treatment arms are equal
-    in everything except the sentences under test.
+    Siblings are not checked out at HEAD. A repository that moved on
+    after the fix can describe it — in a changelog, in a version bump,
+    in code written against the fixed behaviour — and an answer the
+    workspace already contains is not an answer the tool found.
     """
-    shutil.rmtree(LEGACY, ignore_errors=True)
-    LEGACY.mkdir(parents=True, exist_ok=True)
-    archive = subprocess.run(
-        ["git", "archive", "HEAD", "src/wsindex"],
-        cwd=HERE.parent,
-        capture_output=True,
-        stdin=subprocess.DEVNULL,
-    )
-    subprocess.run(["tar", "-x", "-C", str(LEGACY)], input=archive.stdout, capture_output=True)
-    return LEGACY / "src"
+    found = git("rev-list", "-1", f"--before={when}", "HEAD", cwd=source).strip()
+    return found or git("rev-list", "--max-parents=0", "-1", "HEAD", cwd=source).strip()
 
 
-def indexed(where: Path, *, shadow: Path | None = None) -> Path:
+def workspace(org: str, repos: list[str], task_repo: str, sha: str, label: str) -> Path | None:
+    """Every repository of one organisation, as a developer would have them.
+
+    The premise of this tool is several repositories at once, and every
+    agent measurement so far indexed exactly one — the shape where grep
+    is strongest and this is weakest. Here the task repository sits at
+    the commit before its fix and its siblings sit where they stood that
+    day, which is what somebody working in that workspace would see.
+    """
+    root = SCRATCH / f"ws-{task_repo}-{sha[:7]}-{label}"
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    when = git("show", "-s", "--format=%cI", f"{sha}^", cwd=R.CACHE / org / task_repo).strip()
+    for repo in repos:
+        source = R.CACHE / org / repo
+        if not (source / ".git").exists():
+            continue
+        target = f"{sha}^" if repo == task_repo else at_the_time(source, when)
+        git("worktree", "prune", cwd=source)
+        subprocess.run(
+            ["git", "worktree", "add", "--detach", "--force", str(root / repo), target],
+            cwd=source,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+        )
+    return root if (root / task_repo / ".git").exists() else None
+
+
+def indexed(where: Path, *, remote: bool = False, repos: list[str] | None = None) -> Path:
     """A wsindex workspace over this tree, and the MCP config for it.
 
-    `shadow` puts another copy of the package ahead of the installed one
-    on the server's PYTHONPATH — the seam the legacy arm runs through.
+    `remote` rewrites `[embeddings]` between `init` and `index`, because
+    the provider has to be settled before a single chunk is embedded.
     """
     home = where.parent / f"{where.name}-index"
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, "WSINDEX_CONFIG": str(home / "wsindex.toml")}
-    for args in (("init", "tier3agent"), ("add-repo", "repo", str(where)), ("index",)):
+    settings = home / "wsindex.toml"
+    env = {**os.environ, "WSINDEX_CONFIG": str(settings)}
+
+    def run(*args: str) -> None:
         subprocess.run(
             [str(BINARY), *args],
             cwd=home,
@@ -347,8 +412,19 @@ def indexed(where: Path, *, shadow: Path | None = None) -> Path:
             capture_output=True,
             text=True,
             stdin=subprocess.DEVNULL,
-            timeout=1800,
+            timeout=3600,
         )
+
+    run("init", "tier3agent")
+    if remote:
+        import tomli_w
+
+        document = tomllib.loads(settings.read_text(encoding="utf-8"))
+        document["embeddings"] = dict(REMOTE)
+        settings.write_text(tomli_w.dumps(document), encoding="utf-8")
+    for repo in repos or ["repo"]:
+        run("add-repo", repo, str(where / repo if repos else where))
+    run("index")
     config = home / "mcp.json"
     config.write_text(
         json.dumps(
@@ -357,10 +433,10 @@ def indexed(where: Path, *, shadow: Path | None = None) -> Path:
                     "wsindex": {
                         "command": str(BINARY),
                         "args": ["mcp"],
-                        "env": {
-                            "WSINDEX_CONFIG": str(home / "wsindex.toml"),
-                            **({"PYTHONPATH": str(shadow)} if shadow else {}),
-                        },
+                        # No token here, deliberately. The server inherits
+                        # it from this process; a key written into a config
+                        # file is a key in somebody's backups.
+                        "env": {"WSINDEX_CONFIG": str(settings)},
                     }
                 }
             }
@@ -433,7 +509,7 @@ def short(name: str) -> str:
     return "ws:" + name.split("__")[-1] if name.startswith("mcp__wsindex__") else name
 
 
-def protocol(tasks: list[Task], seconds: float) -> str:
+def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False) -> str:
     sha = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True
     ).stdout.strip()
@@ -471,20 +547,29 @@ def protocol(tasks: list[Task], seconds: float) -> str:
         "  the repository **at the commit before the fix**.",
         "- Every arm keeps every ordinary tool; two of them add wsindex over",
         "  MCP and take nothing away — a developer with it still has grep.",
-        "- `legacy` and `new` differ in **nothing but the wording** the MCP",
-        "  server gives the agent. Same index, same code, same evening.",
+        "- `local` and `remote` differ in **nothing but the embedder**: the",
+        "  shipped default against a hosted one, same code, same evening.",
         "- Graded against the diff the maintainers merged, in the parent's",
         "  line numbers so the two are comparable.",
+        (
+            "- **The whole organisation is checked out and indexed**, not just"
+            " the repository the issue names; siblings sit where they stood"
+            " that day, so nothing in the workspace describes the fix."
+            if workspace_mode
+            else "- One repository per task — the shape where grep is strongest"
+            " and this tool weakest. Named because the premise is several."
+        ),
         "- Tools each arm actually had, as the agent reported at startup: "
         + ", ".join(f"{a} **{len(counts[a]['tools'])}**" for a in ARMS)
         + ".",
         "",
         "## The gate, declared before the run",
         "",
-        "`new` lands on the same lines at least as often as `without` and",
-        "spends fewer tokens; and it beats `legacy`, which is the same tool",
-        "described the old way — otherwise the wording changed nothing and",
-        "the difference was the evening.",
+        "`remote` lands on the same lines at least as often as `without`",
+        "and spends fewer tokens — counted in **paired** tasks, not in a",
+        "mean, because one control that thrashes carries a mean on its own.",
+        "And it beats `local`: if the stronger index changes nothing the",
+        "agent does, then search quality is not what was holding it back.",
         "",
         "## Results",
         "",
@@ -574,6 +659,11 @@ def main() -> int:
     )
     parser.add_argument("--suffix", default="", help="tag the protocol filename")
     parser.add_argument(
+        "--workspace",
+        action="store_true",
+        help="index the whole organisation, not just the repo the issue names",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=SEED,
@@ -587,8 +677,14 @@ def main() -> int:
     orgs = args.org or [o for o, c in corpus.items() if c["tier"] == "routine"]
     SCRATCH.mkdir(parents=True, exist_ok=True)
 
+    if "remote" in ARMS and not os.environ.get(str(REMOTE["token_env"])):
+        print(
+            f"${REMOTE['token_env']} is not set, and the remote arm names it",
+            file=sys.stderr,
+        )
+        return 2
+
     started = time.monotonic()
-    shadow = legacy_source()
     print("choosing tasks", flush=True)
     tasks = pick(orgs, args.tasks, set(args.only or ()), args.seed)
     if args.only and not tasks:
@@ -596,17 +692,31 @@ def main() -> int:
         return 2
     for n, task in enumerate(tasks, start=1):
         print(f"[{n}/{len(tasks)}] {task.repo}#{task.number}", flush=True)
+        siblings = [r["id"] for r in corpus[task.org]["repos"]] if args.workspace else None
         for arm in ARMS:
-            where = prepare(task.org, task.repo, task.sha, arm)
+            where = (
+                workspace(task.org, siblings, task.repo, task.sha, arm)
+                if siblings
+                else prepare(task.org, task.repo, task.sha, arm)
+            )
             if where is None:
                 continue
             mcp = (
-                None
-                if arm == "without"
-                else indexed(where, shadow=shadow if arm == "legacy" else None)
+                None if arm == "without" else indexed(where, remote=arm == "remote", repos=siblings)
             )
             keep = TRANSCRIPTS / f"{task.repo}-{task.number}-{arm}.jsonl"
-            attempt = grade(run_agent(where, task.title, mcp, keep), where, task.truth)
+            prompt = (
+                WORKSPACE_PROMPT.format(repo=task.repo, title=task.title)
+                if siblings
+                else PROMPT.format(title=task.title)
+            )
+            attempt = grade(
+                run_agent(where, prompt, mcp, keep),
+                where,
+                task.truth,
+                repos=siblings,
+                task_repo=task.repo,
+            )
             task.attempts[arm] = attempt
             print(
                 f"    {arm:<8} file={attempt.hit_file} line={attempt.hit_line} "
@@ -615,7 +725,10 @@ def main() -> int:
             )
     PROTOCOLS.mkdir(parents=True, exist_ok=True)
     out = PROTOCOLS / f"tier3-agent-{time.strftime('%Y-%m-%d')}{args.suffix}.md"
-    out.write_text(protocol(tasks, time.monotonic() - started), encoding="utf-8")
+    out.write_text(
+        protocol(tasks, time.monotonic() - started, workspace_mode=args.workspace),
+        encoding="utf-8",
+    )
     print(f"\nprotocol written to {out}")
     return 0
 
