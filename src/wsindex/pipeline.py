@@ -43,7 +43,7 @@ from wsindex.ingest import (
     has_uncommitted_changes,
 )
 from wsindex.ingest.commits import blame_links, blame_map, commit_chunks, read_commits
-from wsindex.ingest.link_extract import links_for
+from wsindex.ingest.link_extract import links_for, occurrences_of
 from wsindex.ingest.manifests import read_manifests
 from wsindex.links import Edge, Link, LinkKind, LinkStore
 from wsindex.model import Chunk, Hit, Kind, SearchFilter, SourceFile
@@ -128,6 +128,16 @@ A cap without spares is a shorter list, not a better one: dropping four
 commits out of ten leaves six. Three times k is enough for the worst case
 measured — a top ten that was entirely history — and the store returning
 thirty rows instead of ten is not what a search spends its time on."""
+
+REFS_DEPTH = 200
+"""Chunks the text arm of `refs` reads per repository.
+
+Unbounded is what grep does and it is not what a reader wants: a name
+used a thousand times answers "where is this used" with a thousand
+lines, which is the drowning the ranked half of this tool exists to
+avoid. Two hundred chunks is generous against the sizes measured here —
+the largest workspace in the corpus holds 5 708 — and it is a cap that
+can be seen in the code rather than a truncation nobody mentions."""
 
 RETRIEVAL_WIDTH = 2
 """How much wider than the caller asked each arm retrieves.
@@ -777,14 +787,69 @@ class Pipeline:
         every call, ignoring the one this Pipeline was handed. The
         resource was injected and then bypassed.
 
+        Two arms, for the same reason `search` has two. The store holds
+        the mentions it could anchor to a definition, which is the right
+        rule for something that has to fit on a disk and the wrong one
+        for the only source of an answer: measured on 240 symbol
+        questions it found 124 where `rg -w` found 236, because anything
+        defined in an unparsed file or outside the workspace has no
+        anchor to keep it. The second arm reads the text index, which
+        knows nothing about definitions and therefore misses none of
+        them.
+
+        They are complementary rather than redundant, which is what
+        makes both worth running. The store bridges spellings —
+        `max_retries` in a config against `MaxRetries` in the code — and
+        BM25 cannot, since the two share no token. BM25 finds every
+        plain occurrence, and the store only keeps the anchored ones.
+
         Args:
             name: Exactly as it was recorded — `8080`, `PROJ-412`.
 
         Returns:
             The edges, ordered by file then line; empty when links are
-            switched off for this pipeline.
+            switched off and no text index answers either.
         """
-        return [] if self.links is None else self.links.by_name(name)
+        stored = [] if self.links is None else self.links.by_name(name)
+        return stored + self._mentions_in_text(name, stored)
+
+    def _mentions_in_text(self, name: str, stored: list[Edge]) -> list[Edge]:
+        """Occurrences the link store never anchored, read from the text.
+
+        Skipped entirely without the text index, rather than falling back
+        to a scan: this is a second opinion, and a `refs` that quietly
+        takes minutes is worse than one that answers with what it has.
+        """
+        if not self.config.hybrid:
+            return []
+        seen = {(edge.repo, edge.path, edge.line) for edge in stored}
+        found: list[Edge] = []
+        for repo in self.config.repos:
+            try:
+                hits = self.store.lexical(dataset_name=repo.id, query=name, k=REFS_DEPTH)
+            except (AttributeError, ValueError):
+                continue  # a store without a text index, or a dataset with none
+            for hit in hits:
+                if hit.native_id is None:
+                    continue
+                for line, via in occurrences_of(hit.text, name, start_line=hit.start_line):
+                    if (repo.id, hit.path, line) in seen:
+                        continue
+                    seen.add((repo.id, hit.path, line))
+                    found.append(
+                        Edge(
+                            kind=LinkKind.MENTIONS,
+                            name=name,
+                            line=line,
+                            chunk_id=hit.native_id,
+                            dst_chunk_id=None,
+                            url=None,
+                            via=via,
+                            repo=repo.id,
+                            path=hit.path,
+                        )
+                    )
+        return sorted(found, key=lambda edge: (edge.repo, edge.path, edge.line))
 
     def commit_message(self, repo: str, chunk_id: str) -> str | None:
         """The text of one indexed commit message, or None if it is gone.

@@ -67,8 +67,8 @@ no network. Where a name is spelled differently on the two sides of a
 boundary — `max_retries` in a yaml, `MaxRetries` in the code that reads
 it — which neither `rg -w` nor `rg -i` can do: right on 64 of 76 against
 grep's **0**. And *why* a definition looks the way it does, by walking
-blame to the commit message that explains it: right on 161 of 164 against
-`git log -S`'s 146.
+blame to the commit message that explains it: right on 199 of 202 against
+`git log -S`'s 174.
 
 ## Quickstart
 
@@ -578,11 +578,11 @@ Two commands read what indexing recorded.
 `why` walks from a definition to the commits that wrote its lines, and
 prints their reasoning — which is usually the only place it exists.
 
-**This is the strongest thing measured in this repository.** Over 164
+**This is the strongest thing measured in this repository.** Over 202
 answerable questions across seven workspaces it named a commit that had
-really touched those lines **161 times**. The control — `git log -S`,
-what a person reaches for — managed 146, and lost the discordant pairs
-16 to 1. What a codebase knows about itself and nothing else records is
+really touched those lines **199 times**. The control — `git log -S`,
+what a person reaches for — managed 174, and lost the discordant pairs
+26 to 1. What a codebase knows about itself and nothing else records is
 in its history, and this is the path to it:
 
 ```
@@ -620,13 +620,23 @@ string counts, and nothing resolves *which* definition a use refers to —
 graph is still deferred. What is here is the cheaper claim, this name
 occurs here, which is a search result rather than a fact about calls.
 
-**Measured, `refs` on a symbol loses to `grep` and should not be the
-reason you install this.** Asked on 240 answerable questions across
-seven workspaces whether it reaches the file where a symbol is
-*defined* — names drawn from the source, not from what the tool chose to
-show — it did so 124 times against `rg -w`'s 236, losing the discordant
-pairs 1 to 113. It is competing with grep on grep's best case: you
-already know the exact name.
+**Measured, `refs` on a symbol is level with `grep` and is still not the
+reason to install this.** Asked on 280 answerable questions across seven
+workspaces whether it reaches the file where a symbol is *defined* —
+names drawn from the source, not from what the tool chose to show — it
+does so 268 times against `rg -w`'s 275, and the discordant pairs run 1
+to 8 (p = 0.039). Behind, narrowly, on grep's best case: you already
+know the exact name.
+
+It used to be 124 to 236, and closing that was one arm, not one idea.
+The link store keeps a mention only when some indexed file also defines
+the name, which is the right rule for a store that has to fit on a disk
+and the wrong one for the only source of an answer — everything defined
+in an unparsed file, or outside the workspace, had no anchor to hold it.
+`refs` now reads the text index as well, which knows nothing about
+definitions and so misses none of them. The two arms are complementary
+rather than redundant: the store bridges `max_retries` to `MaxRetries`,
+which BM25 cannot, since the two share no token.
 
 The case it wins is one spelling of a setting reaching another, because
 that is the one `grep` cannot serve at all:

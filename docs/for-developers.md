@@ -52,16 +52,16 @@ puts in front of you, counted the same way on both sides.
 **Two things here beat `grep` outright, and they are not the search.**
 Asking *why* a definition looks the way it does — walking its lines back
 to the commit that explains them — named a commit that really touched
-those lines 161 times of 164, where `git log -S` managed 146. And
+those lines 199 times of 202, where `git log -S` managed 174. And
 reaching a setting written `max_retries` in a yaml from the
 `MaxRetries` in the code that reads it: 64 of 76, with `rg` scoring
 **zero**, because no flag it has crosses that gap.
 
 The mirror of that, said plainly because you will otherwise assume it:
-asking `refs` where an ordinary symbol is defined **loses** to `rg -w`,
-124 to 236.
-If you already know the exact name, grep is the better tool and this one
-has nothing to add.
+asking `refs` where an ordinary symbol is defined is **level** with
+`rg -w` and slightly behind it, 268 to 275 of 280. If you already know
+the exact name, grep is still the better tool, and the honest reason to
+reach for this one is the spelling case above.
 
 What follows is what it is measured to do — see
 [field-trial.md](field-trial.md) for how that was measured and what else
@@ -127,7 +127,7 @@ it is the better choice; see the README for the four config lines it
 needs and the reasons each one exists.
 
 **If your language is not in the table, you get an empty index and no
-warning.** Elixir and Scala have no entry, so those files are not chunked
+warning.** Scala has no entry, so those files are not chunked
 as text — they are skipped. One workspace indexed 30 files out of 417 and
 `wsindex index` said only `files: 30`. Check with `wsindex explain` on any
 source file before you trust an index; if it says *no language claims this
@@ -153,7 +153,7 @@ words. The default answers 2 of 23 of those. The design answers 12 with a
 frontier model, so this is a setting away rather than a rewrite — but it
 is not what you get by typing `wsindex init`.
 
-**No, if** your workspace is Elixir, Scala, Swift or Objective-C and you
+**No, if** your workspace is Scala, Swift or Objective-C and you
 do not want to hand-write a `formats` table first.
 
 ## Starting

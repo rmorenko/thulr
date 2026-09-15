@@ -111,7 +111,7 @@ three more indexed almost nothing while reporting success. All of that
 is fixed and tested. What is not fixed is the class of question below.
 
 **It does not support every language.** Sixteen languages get a real
-syntax tree. Elixir, Scala, Swift and Objective-C get nothing at all
+syntax tree. Scala, Swift and Objective-C get nothing at all
 unless somebody adds a configuration entry per repository.
 
 ## Where it fits, and where it does not

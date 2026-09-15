@@ -6,7 +6,6 @@ from typing import Annotated
 import typer
 
 from wsindex.cli.composition import (
-    build_links,
     build_pipeline,
     config_or_default,
     require_config_file,
@@ -101,8 +100,14 @@ def refs(name: str) -> None:
     """
     config = config_or_default()
     require_config_file(config)
-    with build_links(config) as links:
-        edges = links.by_name(name)
+    # Through the pipeline, not straight into the link store. This
+    # command held its own `LinkStore` and called `by_name` on it, which
+    # is the same bypass the MCP tool had and was fixed for — and it was
+    # not a tidiness point: the second arm of `references`, which reads
+    # occurrences out of the text index, reached the MCP tool and never
+    # reached here. A tier-2 run said so by printing the same counts to
+    # the digit as the run before the arm existed.
+    edges = build_pipeline().references(name)
     if not edges:
         typer.echo(f"no links named {name!r}")
         return

@@ -88,9 +88,10 @@ Neither is a degraded index. Both are a traceback and an empty store.
 ### Three silences, which are worse
 
 `pow-auth` indexed **30 of 417 files**. `circe` indexed 67 of 455.
-`phoenixframework`, 286 of 892. Their languages — Elixir and Scala — have
-no entry in the language table, so their files are not chunked as text,
-they are **skipped entirely**.
+`phoenixframework`, 286 of 892. Their languages — Elixir and Scala — had
+no entry in the language table, so their files were not chunked as text,
+they were **skipped entirely**. Elixir has a grammar now, and the fifty
+unreachable questions below are what bought it; Scala still does not.
 
 The cure is three lines of `[repos.formats]` config, and `wsindex explain <path>` says exactly that when asked. But `wsindex index` printed
 `files: 30` and nothing else, and `wsindex status` showed three healthy
@@ -288,7 +289,7 @@ them. Tier 1 caught a 690-second no-op — an unchanged re-index of an
 11 786-file workspace taking 762 seconds against a documented promise of
 under a second — which had shipped that morning, survived 1 116 green
 unit tests, and is invisible on six of the seven workspaces. Tier 2 put
-the first number on `why` (161 of 164) and showed that `refs` on an
+the first number on `why` (199 of 202) and showed that `refs` on an
 ordinary symbol *loses* to `rg -w`. Tier 3 answered the question this
 project had never been able to answer.
 
