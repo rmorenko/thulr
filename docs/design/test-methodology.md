@@ -136,7 +136,33 @@ rank 50 — the gap between those two columns is the cost of the defaults
 rather than a failure of the index.
 
 **Tier 3, per task:** solved or not, tokens spent, tool calls made,
-wall clock.
+wall clock — and the whole conversation, kept.
+
+**An aggregate without a record is not a result you can act on.** The
+first agent run reported a mean and nothing else, and two of its twelve
+tasks cost more than twice as much with the tool as without. Whether a
+bad answer sent the agent wandering or it merely took a long road could
+not be told from a mean, so the finding could be neither fixed nor
+dismissed. Transcripts are now written for every run, outside the
+repository — they are a record of somebody else's code and not ours to
+commit — and the per-task tool counts go into the protocol beside the
+totals, because "the treatment replaced reading" and "the treatment
+added to it" produce the same token figure and mean opposite things.
+
+**A harness records what it handed over, not what it meant to hand
+over.** The transcripts were added to explain two expensive tasks and
+the first one explained something else: the agent had not six tools but
+**212**. `--allowedTools` says what may run without asking; `--tools`
+says what exists — and with only the former, every MCP server configured
+on the operator's machine joined the run, this machine's mail and
+calendar included. Both arms carried it, so the comparison was not
+lopsided, merely not the experiment the protocol described. Two rules
+follow. The harness names the tools with the flag that limits them and
+passes `--strict-mcp-config` so only the server under test is loaded;
+and the protocol prints the inventory each side actually reported at
+startup, so a reader can see the experiment rather than trust it. The
+run that found this was discarded — a measurement of a setup nobody
+described cannot be repaired by reinterpreting it.
 
 **Everywhere:** what it cost. Seconds, bytes, and tokens if any left the
 machine.
