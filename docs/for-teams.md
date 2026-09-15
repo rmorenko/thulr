@@ -14,22 +14,27 @@ reading in 85 of the 99 both finished. Counted as a fixed reading policy
 rather than as a person, so it is the size of the pile the tool hands
 over rather than anybody's cleverness.
 
-**That default is a posture with a price, and the price is measured.**
-On 154 questions taken from the issue trackers of the projects being
-indexed, the fully local default finds the right file in the top ten 65
-times and `ripgrep` finds it 60 — a tie, inside noise. A hosted reranker, which sends a query
-and about forty candidate chunks per search and never the repository,
-takes it to 85. A hosted embedder as well, which does send every chunk
-once, takes it to 109. Four postures, three of them defensible, and the
-choice is yours rather than this document's.
+**That default is a posture, and what it costs is measured.** On 204
+questions taken from the issue trackers of the projects being indexed,
+the fully local default finds the right file in the top ten 98 times and
+`ripgrep` finds it 71 — 48 questions only wsindex answers against 21 only
+ripgrep answers, p = 0.0016. A hosted reranker, which sends a query and
+about forty candidate chunks per search and never the repository, takes
+it to 109. A hosted embedder as well, which does send every chunk once,
+takes it to 132. Four postures, three of them defensible, and the choice
+is yours rather than this document's.
 
-If the answer has to be "nothing leaves", the default is already the row
-to standardise on: fusing a lexical pass with the vector one is what took
-it to 65 from the 55 it managed before, and it sends nothing either way.
-If you have hardware and a
-closed network, the same argument points at running a larger model on
-your own infrastructure — which this supports and which has **not** been
-measured here, so treat it as a direction rather than a number.
+Worth saying at the same volume: in the top *three* the local default
+manages 62 against ripgrep's 71, which is noise either way. A developer
+who already knows the identifier is better served by grep, and this
+changes nothing about that.
+
+If the answer has to be "nothing leaves", the default is the row to
+standardise on and it is already ahead of the control. If you have
+hardware and a closed network, the same argument points at running a
+larger model on your own infrastructure — which this supports and which
+has **not** been measured here, so treat it as a direction rather than a
+number.
 
 Everything below is measured on twenty real codebases that are not its
 own — 105 repositories from twenty GitHub organizations, chosen to

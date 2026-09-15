@@ -424,8 +424,13 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     shutil.rmtree(state, ignore_errors=True)
     state.mkdir(parents=True, exist_ok=True)
     config._data["store"]["uri"] = str(state / "data.lance")
-    if os.environ.get("WSINDEX_HYBRID") == "1":
-        config._data["store"]["hybrid"] = True
+    # Tri-state on purpose: unset means "whatever ships", which is what a
+    # report about the default has to measure. `1` and `0` are for the
+    # table, and `0` had no spelling at all until now — the "hybrid
+    # turned off" row could be published but not reproduced, which is the
+    # same fault the unpinned ripgrep had.
+    if (hybrid := os.environ.get("WSINDEX_HYBRID")) in ("0", "1"):
+        config._data["store"]["hybrid"] = hybrid == "1"
     # Built by the composition root, not here. The real model, the real
     # provider switch, the real reranker wiring — so that changing a
     # default changes what this measures, which is the point of the

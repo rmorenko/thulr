@@ -218,31 +218,45 @@ keeping a hand-written `rg_query` would have been a swindle: terms are
 extracted from the question by a frozen rule, all of them are tried, and
 ripgrep's *best* outcome is the one reported.
 
-Of the 204, fifty are unreachable — the file was never indexed, all of
-them Elixir, which has no grammar here. That ratio is itself a finding:
-real questions land where the codebase is, not where the indexer is
-comfortable. On the 154 that remain, paired, McNemar exact:
+Fifty of the 204 used to be unreachable — the file was never indexed,
+every one of them Elixir, which had no grammar here. They are reachable
+now, and the ratio was itself the finding that bought the grammar: real
+questions land where the codebase is, not where the indexer is
+comfortable. All 204, paired, McNemar exact:
 
-| Configuration             | hit@3 | hit@10 |
-| ------------------------- | ----: | -----: |
-| default — hybrid on       |    47 |     65 |
-| hybrid turned off         |    29 |     55 |
-| + a hosted reranker       |    50 |     85 |
-| a hosted embedder as well |    61 |    109 |
-| `ripgrep`                 |    60 |     60 |
+| Configuration             | hit@1 | hit@3 | hit@10 |
+| ------------------------- | ----: | ----: | -----: |
+| default — hybrid on       |    36 |    62 |     98 |
+| hybrid turned off         |     1 |    35 |     72 |
+| + a hosted reranker       |    31 |    68 |    109 |
+| a hosted embedder as well |    56 |    99 |    132 |
+| `ripgrep`                 |     — |     — |     71 |
 
-The default ties ripgrep (65 against 60, p = 0.57) and the two find
-*different* questions. Fusing a lexical pass with the vector one is what
-took it there from 55 — free, local, on — and it nearly doubles the top
-three, 29 to 47, p = 0.0003. A hosted reranker beats ripgrep 85 to 60
-(p = 0.0008) while sending the query and about forty chunks rather than
-the corpus.
+**The two depths disagree, and both belong on the page.** At ten the
+default beats ripgrep 98 to 71 — 48 questions only it answers against 21
+only ripgrep answers, p = 0.0016. At three it does not: 62 to 71,
+p = 0.28, which is noise and not a win for either. Knowing the exact
+identifier is still grep's case, and it always was.
+
+Read the hybrid row twice. Switching fusion off costs 26 answers at
+depth ten and takes hit@1 from 36 to **1 question in 204** — commit
+messages score well against any prose and take the first slot, and the
+lexical arm is the only thing that dislodges them. It is free, local and
+on.
 
 The bucket that matters most is where ripgrep drowned: it returned more
-than twenty files for **72 of the 154**, median seventy. The local default
-turns 23 of those into a top-ten answer, a hosted reranker 33. That is
-the half of real questions where ranking is the entire value, and it is
-also where this is furthest from finished.
+than twenty files for **97 of the 204**, median seventy. The local
+default turns 40 of those into a top-ten answer. That is the half of
+real questions where ranking is the entire value.
+
+Two numbers here came from a measurement that had to be repaired before
+it could be believed. The earlier version of this table put the default
+at 65 and ripgrep at 60 and called it a tie. The 65 was real for the
+retrieval of the time; the 60 was not reproducible, because the corpus
+is pinned by sha and the threshold is a constant but the control binary
+was pinned by nothing. Rebuilt on ripgrep 15.2.0 the control answers 71,
+so the honest reading of that day is that the default was *behind* the
+control, not level with it. The report prints its ripgrep version now.
 
 ## How it is checked now
 

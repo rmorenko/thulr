@@ -13,28 +13,35 @@ process, the index is a file you can delete, and a warm search opens zero
 sockets. There is no account and no server to run.
 
 **What that default does and does not buy is measured, and you should
-know both before you install anything.** On 154 questions taken from the
+know both before you install anything.** On 204 questions taken from the
 issue trackers of the projects being indexed — real questions, in the
 words of people who had never heard of this tool — the fully local
-default puts the right file in the top ten 65 times. `ripgrep` manages
-60\. That is a tie, inside noise: on *ranking*, staying local buys nothing
-over grep. What it does buy is two paragraphs down, and it is not
-ranking.
+default puts the right file in the top ten 98 times. `ripgrep` manages
+71\. Paired, that is 48 questions only wsindex answers against 21 only
+ripgrep answers, p = 0.0016.
+
+**Read the other depth before you get excited.** In the top *three* the
+default manages 62 and `ripgrep` 71, and that difference is noise
+(p = 0.28). If you know the identifier you are looking for, grep is
+still the faster way to put it on screen. What this is for is the
+other case: `ripgrep` returned more than twenty files for 97 of the 204,
+median seventy, and the default turns 40 of those into a top-ten answer.
 
 What changes it:
 
-| What you turn on      | Finds it (of 154) | What leaves your machine |
+| What you turn on      | Finds it (of 204) | What leaves your machine |
 | --------------------- | ----------------: | ------------------------ |
-| nothing — the default |                65 | nothing                  |
-| hybrid turned off     |                55 | nothing                  |
-| a hosted reranker     |                85 | the query and ~40 chunks |
-| a hosted embedder too |               109 | every chunk, once        |
+| nothing — the default |                98 | nothing                  |
+| hybrid turned off     |                72 | nothing                  |
+| a hosted reranker     |               109 | the query and ~40 chunks |
+| a hosted embedder too |               132 | every chunk, once        |
 
-Fusing a lexical pass with the vector one is what took the default to 65
-from the 55 it used to manage; it is free, local and on. The hosted
-reranker sends the query and about forty candidate chunks per search —
-not your repository — and it is the line where this stops tying with grep
-and starts beating it 85 to 60.
+Fusing a lexical pass with the vector one is free, local and on, and it
+is what holds the top of that list: switched off, the right file is
+*first* for 1 question of 204 instead of 36, because commit messages
+score well against any prose and take the slot. The hosted reranker
+sends the query and about forty candidate chunks per search — not your
+repository — for another 11 answers.
 
 **What it saves, measured:** on 204 tasks drawn from the indexed
 projects' own issue trackers, reaching the answer took a median of

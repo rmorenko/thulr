@@ -72,12 +72,19 @@ the pile each tool puts on the desk, which is the part the tool controls.
 A real agent that skims, gives up on a file after two lines and rewrites
 its query may do better with either.
 
-What *is* measured is the ranking, against `ripgrep` on 154 questions
+What *is* measured is the ranking, against `ripgrep` on 204 questions
 taken from the issue trackers of the indexed projects — nobody here wrote
-them. Right file in the top ten: the local default **65**, ripgrep **60**, and
-with a hosted reranker **85**. So the default ties grep and the
-configured version beats it by a distance, which is worth knowing before
-you wire anything up.
+them. Right file in the top ten: the local default **98**, ripgrep **71**,
+with a hosted reranker **109** and a hosted embedder as well **132**. In
+the top *three* it is 62 against ripgrep's 71, which is noise: the win is
+at depth, not at the very top, and an agent that reads one hit and stops
+will not see it.
+
+Measured separately and worth knowing before you wire anything up: on 24
+real issues, an agent given these tools finished on the same lines as
+often as one without them and spent **more** tokens doing it — 19 of 24
+tasks more expensive, p = 0.0066 locally. The ranking above is a fact
+about search; it did not become a saving for an agent.
 
 **Two answers here do beat `grep`, and both are now measured.** `why` —
 a definition to the commits that wrote it — named a commit that really
@@ -88,12 +95,12 @@ control at **zero**, because no flag `rg` has crosses that gap. `refs`
 on a plain symbol is the opposite — 124 to grep's 236 — so ask it about
 settings and history, not about names you already know.
 
-The number an agent should care about most: of those 154 questions,
-`ripgrep` returned **more than twenty files for 72 of them**, median
+The number an agent should care about most: of those 204 questions,
+`ripgrep` returned **more than twenty files for 97 of them**, median
 seventy. Those are the questions where a ranked answer is the difference
 between reading three files and reading seventy — and they are nearly
-half of what real people ask. The local default turns 23 of those 72 into a
-top-ten answer; with a hosted reranker, 33.
+half of what real people ask. The local default turns 40 of those 97
+into a top-ten answer.
 
 Wire this up where your agent's greps come back with hundreds of matches.
 That is where the measured advantage is, and it is now a measured number

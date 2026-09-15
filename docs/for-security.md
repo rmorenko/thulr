@@ -12,28 +12,31 @@ be typed into a config file, and each is named below with exactly what it
 sends.
 
 **And the part a security reviewer is usually not told.** Staying at the
-default costs quality, and the amount is measured. On 154 questions
+default costs quality, and the amount is measured. On 204 questions
 harvested from the indexed projects' own issue trackers, the fully local
-default finds the right file in the top ten 65 times; `ripgrep` finds it
-60\. That is a tie with grep, inside noise. Turning on a hosted *reranker* — which
-sends the query and about forty candidate chunks per search, never the
-corpus — takes it to 85. Replacing the embedder as well, which does send
-every chunk once, takes it to 109.
+default finds the right file in the top ten 98 times; `ripgrep` finds it
+71\. Turning on a hosted *reranker* — which sends the query and about
+forty candidate chunks per search, never the corpus — takes it to 109.
+Replacing the embedder as well, which does send every chunk once, takes
+it to 132.
 
 So the decision in front of you is not "secure or insecure". It is which
 of four postures to buy, and three of them are defensible:
 
-| Posture                 | Finds it (of 154) | What leaves        |
+| Posture                 | Finds it (of 204) | What leaves        |
 | ----------------------- | ----------------: | ------------------ |
-| The default, hybrid on  |                65 | Nothing            |
-| Hybrid turned off       |                55 | Nothing            |
-| Hosted reranker         |                85 | Query + ~40 chunks |
-| Hosted embedder as well |               109 | Every chunk, once  |
+| The default, hybrid on  |                98 | Nothing            |
+| Hybrid turned off       |                72 | Nothing            |
+| Hosted reranker         |               109 | Query + ~40 chunks |
+| Hosted embedder as well |               132 | Every chunk, once  |
 
-The first row is the default and sends nothing — fusing a lexical pass
-with the vector one is what took it to 65 from the 55 below it, and the
-second row exists only for somebody who wants exactly the old ranking.
-The third is the one most organisations should argue about.
+The first row is the default, sends nothing, and is already ahead of the
+control — 98 against ripgrep's 71, p = 0.0016. Fusing a lexical pass
+with the vector one is what holds the top of it: the second row is the
+same tool with that switched off, and it puts the right file *first* for
+1 question of 204 instead of 36. The third row is the one most
+organisations should argue about; it buys 11 answers for a query and
+forty chunks per search.
 
 ## What opens a socket, and when
 

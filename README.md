@@ -17,23 +17,30 @@ test of a search tool is questions from people who have never heard of
 it, so [355 of them were harvested](docs/field-trial.md) from the issue
 trackers of the indexed projects: the question is a closed issue's title
 in its author's words, and the answer is the file the pull request that
-closed it changed. On the 154 answerable ones, against `ripgrep` given
-its best query drawn from the same words:
+closed it changed. All 204 of them, against `ripgrep` given its best
+query drawn from the same words:
 
 | configuration             | hit@3 | hit@10 | what leaves the machine  |
 | ------------------------- | ----: | -----: | ------------------------ |
-| default — hybrid on       |    47 |     65 | nothing                  |
-| hybrid turned off         |    29 |     55 | nothing                  |
-| + a hosted reranker       |    50 |     85 | the query and ~40 chunks |
-| a hosted embedder as well |    61 |    109 | every chunk, once        |
-| `ripgrep`                 |    60 |     60 | —                        |
+| default — hybrid on       |    62 |     98 | nothing                  |
+| hybrid turned off         |    35 |     72 | nothing                  |
+| + a hosted reranker       |    68 |    109 | the query and ~40 chunks |
+| a hosted embedder as well |    99 |    132 | every chunk, once        |
+| `ripgrep`                 |     — |     71 | —                        |
 
-Read it plainly. **Local ties grep at depth ten** — 65 against 60, and
-the difference is not significant; fusing a lexical pass with the vector
-one is what closed most of the gap, and it costs nothing and sends
-nothing. Adding a hosted reranker — which sends the query and about
-forty candidate chunks, never your code — beats grep 85 to 60 and puts
-the top three within reach of replacing the model outright.
+Read it plainly, at both depths, because they do not say the same thing.
+**At depth ten the local default beats grep, 98 to 71** — 48 questions
+only it answers against 21 only grep answers, p = 0.0016. **At depth
+three it does not**: 62 to 71, and that difference is noise (p = 0.28).
+If you know the identifier, grep still puts it in front of you faster.
+What the default is for is the 97 questions of 204 where grep returned
+more than twenty files and answered nothing in particular; wsindex puts
+40 of those in its top ten.
+
+Fusing a lexical pass with the vector one is what holds the top of that
+list: with it switched off, hit@1 is **1 question of 204**, because
+commit messages score well against any prose and take the first slot.
+It costs nothing and sends nothing.
 
 **And the number behind all of that: reaching an answer costs about a
 tenth of the reading.** The table above ranks *hits*, and a rank is not
@@ -46,14 +53,13 @@ cheaper on 85 of them. The worker is a fixed reading policy rather than a
 language model, so this measures the size of the pile each tool hands
 over — the part the tool controls — and not an agent's judgement.
 
-**So local is not the weak mode, it is the cheap one.** Everything above
-the network line was measured with nothing leaving the machine: the tie
-with grep on hits, the tenfold cut in reading, and the two questions
-below that grep cannot answer at all. Worth naming exactly what a hosted
-model buys, because it is one thing — better *ranking*, 85 or 109 against
-60\. It does not buy the token economy or the two questions; those are
-already there without it. Nothing leaves unless a config file says so, in
-as many words, and [for-security.md](docs/for-security.md) lists every
+**Everything above the network line was measured with nothing leaving
+the machine** — the 98, the tenfold cut in reading, and the two questions
+below that grep cannot answer at all. What a hosted model buys is worth
+naming exactly, because it is one thing: better *ranking*, 109 or 132
+against 98. It does not buy the token economy or those two questions;
+they are there without it. Nothing leaves unless a config file says so,
+in as many words, and [for-security.md](docs/for-security.md) lists every
 line that can change that.
 
 **Two questions it answers that `grep` cannot**, at any setting and with
