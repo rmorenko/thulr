@@ -144,24 +144,34 @@ def refs(name: str) -> None:
         typer.echo("  (nothing declares it — code and configuration have drifted)")
 
 
-def why(symbol: str) -> None:
+def why(target: str) -> None:
     """Why a definition looks the way it does: the commits that wrote it.
 
     Definition -> blame edges -> commit messages, plus whatever those
     commits pointed at outside the repository. The reasoning behind a
     design decision usually lives in a commit message and nowhere else;
     this is the path to it.
+
+    `target` is a symbol name or a place:
+
+        $ wsindex why chunk_markdown
+        $ wsindex why src/wsindex/ingest/text_chunker.py:42
+
+    The second is how the question usually arrives — somebody is reading
+    a line and does not know why it is there. Asking them to name the
+    enclosing function first is asking them to do half the lookup by
+    hand.
     """
     config = config_or_default()
     require_config_file(config)
-    definitions = build_pipeline().why(symbol)
+    definitions = build_pipeline().why(target)
     if not definitions:
         # Exit 0, like `refs`. Looking and not finding is an answer, and
         # the two commands used to disagree about that — `why` exited 1
         # where `refs` exited 0 for the same situation, which is the kind
         # of difference a script discovers the hard way. Code 1 is kept
         # for "could not look".
-        typer.echo(f"no definition found for {symbol!r}")
+        typer.echo(f"no definition found for {target!r}")
         return
     for definition in definitions:
         typer.echo(f"{definition.hit.symbol}  {definition.hit.location}")

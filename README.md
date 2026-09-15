@@ -577,6 +577,13 @@ Two commands read what indexing recorded.
 
 `why` walks from a definition to the commits that wrote its lines, and
 prints their reasoning — which is usually the only place it exists.
+It takes a name or a place, because the question usually arrives as a
+place: you are reading a line and do not know why it is there.
+
+```console
+$ wsindex why chunk_markdown
+$ wsindex why src/wsindex/ingest/text_chunker.py:42
+```
 
 **This is the strongest thing measured in this repository.** Over 202
 answerable questions across seven workspaces it named a commit that had

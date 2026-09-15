@@ -97,7 +97,14 @@ def build(pipeline: Pipeline | None = None) -> FastMCP:
 
     @server.tool()
     def why(
-        symbol: Annotated[str, Field(description="A function, class or method name")],
+        # Still `symbol`, though it now takes a place as well. The name
+        # is the wire format: a client that already calls this passes
+        # `symbol`, and renaming an argument to describe it better is a
+        # break in exchange for a nicer word.
+        symbol: Annotated[
+            str,
+            Field(description="A function, class or method name, or `path/to/file.py:42`"),
+        ],
     ) -> dict[str, Any]:
         """The commits that wrote a definition, and what they said about it."""
         return _why(engine, symbol)
@@ -201,10 +208,10 @@ def _refs(engine: Pipeline, name: str) -> dict[str, Any]:
     return {"name": name, "count": len(found), "links": found, "unresolved": drifted}
 
 
-def _why(engine: Pipeline, symbol: str) -> dict[str, Any]:
+def _why(engine: Pipeline, target: str) -> dict[str, Any]:
     """`why`, as data. The definitions come from the library, whole."""
     return {
-        "symbol": symbol,
+        "symbol": target,
         "definitions": [
             {
                 "symbol": definition.hit.symbol,
@@ -223,7 +230,7 @@ def _why(engine: Pipeline, symbol: str) -> dict[str, Any]:
                     for author in definition.commits
                 ],
             }
-            for definition in engine.why(symbol)
+            for definition in engine.why(target)
         ],
     }
 

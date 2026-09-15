@@ -12,6 +12,7 @@ inverted index that does exist is over the link store by name: ports,
 tickets, commits, urls.
 """
 
+import re
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -169,6 +170,37 @@ def test_why_and_refs_agree_that_not_found_is_an_answer(workspace: Path) -> None
     refs_result = runner.invoke(app, ["refs", "no_such_name_anywhere"])
     assert why_result.exit_code == refs_result.exit_code == 0
     assert "no definition found" in why_result.output
+
+
+def test_why_takes_a_place_as_well_as_a_name(workspace: Path) -> None:
+    # How the question actually arrives: somebody is reading a line and
+    # does not know why it is there. Naming the enclosing function first
+    # is half the lookup, done by hand — and the measurements say it is
+    # the half that stops the tool being used at all.
+    by_name = runner.invoke(app, ["why", "connect"])
+    where = re.search(r"svc/client\.py:(\d+)", by_name.output)
+    assert where is not None, by_name.output
+    line = int(where.group(1))
+
+    result = runner.invoke(app, ["why", f"svc/client.py:{line}"])
+
+    assert result.exit_code == 0
+    assert "Points at the service." in result.output
+
+
+def test_a_name_with_colons_in_it_is_still_a_name(workspace: Path) -> None:
+    # `Foo::bar` is what a symbol looks like in Rust and C++, so the
+    # place form has to require digits after the last colon. Otherwise
+    # widening `why` would quietly narrow it.
+    result = runner.invoke(app, ["why", "Foo::bar"])
+    assert result.exit_code == 0
+    assert "no definition found for 'Foo::bar'" in result.output
+
+
+def test_why_at_a_line_nothing_covers_is_an_answer(workspace: Path) -> None:
+    result = runner.invoke(app, ["why", "svc/client.py:99999"])
+    assert result.exit_code == 0
+    assert "no definition found" in result.output
 
 
 def test_why_needs_a_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

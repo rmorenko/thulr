@@ -27,6 +27,7 @@ left its old chunks in the index forever.
 """
 
 import logging
+import re
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, replace
@@ -128,6 +129,15 @@ A cap without spares is a shorter list, not a better one: dropping four
 commits out of ten leaves six. Three times k is enough for the worst case
 measured — a top ten that was entirely history — and the store returning
 thirty rows instead of ten is not what a search spends its time on."""
+
+_AT_LINE = re.compile(r"^(?P<path>.+?):(?P<line>\d+)$")
+"""A place rather than a name. Digits after the last colon are required,
+so `Foo::bar` is still read as a symbol — which is what it is in Rust and
+C++, and what somebody typing it means."""
+
+_PER_FILE = 200
+"""Chunks `why` will look at when asked about a line. A source file
+holds tens; anything holding more than this is generated or minified."""
 
 REFS_DEPTH = 200
 """Chunks the text arm of `refs` reads per repository.
@@ -691,8 +701,18 @@ class Pipeline:
             self.links.delete_by_source(stale)
         return deleted
 
-    def why(self, symbol: str, *, limit: int = 3) -> list[Definition]:
-        """Definitions of `symbol`, each with the commits that wrote it.
+    def why(self, target: str, *, limit: int = 3) -> list[Definition]:
+        """Definitions of `target`, each with the commits that wrote it.
+
+        `target` is a symbol name, or a place — `src/thing.go:412`. The
+        second spelling exists because it is how the question actually
+        arrives: somebody is looking at a line they do not understand,
+        and requiring them to first name the function that contains it
+        asks them to do part of the lookup by hand. Measured across
+        three agent runs on 48 tasks, `why` was called **at most once**,
+        while `search` was called on nearly every task — the tool with
+        the best number in this repository was the one nothing reached
+        for, and needing a symbol first is the likeliest reason.
 
         Lives here because two adapters wanted it and each built it
         itself — `wsindex why` and the MCP tool — from the same three
@@ -715,10 +735,45 @@ class Pipeline:
             with no commits is normal — links may be off, or the repo
             may not have been indexed since blame edges existed.
         """
-        found = self.search(symbol, k=limit, filters=SearchFilter(symbol=symbol))
+        place = _AT_LINE.match(target)
+        found = (
+            self._covering(place.group("path"), int(place.group("line")), limit)
+            if place
+            else self.search(target, k=limit, filters=SearchFilter(symbol=target))
+        )
         if not found or self.links is None:
             return [Definition(hit=hit, commits=()) for hit in found]
         return [Definition(hit=hit, commits=tuple(self._authors(hit))) for hit in found]
+
+    def _covering(self, path: str, line: int, limit: int) -> list[Hit]:
+        """The indexed chunks that hold one line of one file, innermost first.
+
+        Found through the path prefilter rather than by scanning every
+        chunk's metadata: the filter narrows the store to one file, which
+        is a handful of chunks, so the query text is only there because
+        `search` needs one. A file with more chunks than `_PER_FILE` is a
+        minified bundle, and `why` has nothing to say about those anyway.
+
+        Innermost first — shortest span, named before unnamed — because a
+        line sits inside a method inside a class, and the one somebody
+        pointing at that line means is the smallest thing containing it.
+        """
+        wanted = path.lstrip("./")
+        # The store keeps a path relative to its repository, so a caller
+        # who pastes what the tool printed — `svc/client.py:4`, repo id
+        # and all — filters on a string no row holds. Reported as "no
+        # definition found", which is the wrong answer rather than a
+        # narrow one, and it is the spelling a reader is most likely to
+        # have in their clipboard.
+        inside = next((r.id for r in self.config.repos if wanted.startswith(f"{r.id}/")), None)
+        if inside is not None:
+            wanted = wanted[len(inside) + 1 :]
+        hits = self.search(wanted, k=_PER_FILE, filters=SearchFilter(path=f"*{wanted}"))
+        covering = [
+            hit for hit in hits if hit.path == wanted and hit.start_line <= line <= hit.end_line
+        ]
+        covering.sort(key=lambda hit: (hit.end_line - hit.start_line, hit.symbol is None))
+        return covering[:limit]
 
     def _authors(self, hit: Hit) -> Iterator[Authorship]:
         """The commits a blame edge attributes this chunk to."""
