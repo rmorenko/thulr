@@ -107,18 +107,23 @@ ten**. What you install runs a 23M-parameter model on your own machine
 and sends nothing anywhere, which is the trade — not a ceiling on what
 this is capable of.
 
-**A deeper list still pays.** History no longer floods the results —
-commit messages are capped at a fifth of any list, which is what took
-descriptive answers from 0 to 4 of 30 and identifier answers from 3 to 5
-in the top three. What the cap cannot do is make the list longer, and a
-fifth of the answers sit at ranks 10 to 50. Searching with
+**A deeper list still pays, and it is a trade rather than a free win.**
+Measured on the 204 harvested questions: the default holds the answer
+for 98 of them, and
 
 ```console
 $ wsindex search "your question" -k 50 --kind code --kind doc
 ```
 
-still finds roughly a third of the descriptive answers against the
-default's one in seven. Worth the habit.
+holds it for **145**. Worth the habit, and worth knowing what it costs —
+an answer at `-k 10` is about 2 200 tokens to read, and five times that
+at `-k 50`.
+
+The depth is doing all of the work there, not the filter: at depth ten,
+restricting to code and docs scores 77 against the unrestricted 79. The
+47 extra answers sit at ranks 11 to 50, and nothing reorders them into
+the top ten — a local cross-encoder over the same fifty candidates
+scores 74 against 79 when it decides, and 80 when it votes.
 
 **There is a second model, and it is a trade.** `CodeRankEmbed` lifts
 identifier answers from 9 of 20 to 13, and from 1 to 4 at rank one — and

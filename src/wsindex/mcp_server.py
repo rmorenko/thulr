@@ -70,6 +70,13 @@ def build(pipeline: Pipeline | None = None) -> FastMCP:
         ] = None,
         path: Annotated[str | None, Field(description="Path glob, e.g. src/*.py")] = None,
         symbol: Annotated[str | None, Field(description="Substring of the symbol name")] = None,
+        # None by default, and measured rather than assumed. An answer
+        # costs about 2 200 tokens at k=10, which looks like something to
+        # cap until the cap is swept: `fit` drops whole hits, so on 204
+        # harvested questions a 1 200-token budget keeps the answer for
+        # 70 where no budget keeps it for 98, and 800 keeps 53. Half the
+        # tokens cost 28 answers. A caller who knows its own context
+        # window can still say so; this is not a default worth having.
         budget: Annotated[
             int | None,
             Field(description="Cap the returned text at this many tokens", ge=1),
