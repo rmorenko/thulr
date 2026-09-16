@@ -72,6 +72,11 @@ ast = [
   "tree-sitter-yaml>=0.7,<1",
   "tree-sitter-elixir>=0.3,<1",
   "tree-sitter-bash>=0.25,<1",
+  "tree-sitter-scala>=0.26,<1",
+  "tree-sitter-sql>=0.3,<1",
+  "tree-sitter-hcl>=1.2,<2",
+  "tree-sitter-swift>=0.7,<1",
+  "tree-sitter-objc>=3,<4",
 ]
 
 [dependency-groups]

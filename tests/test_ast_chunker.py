@@ -66,10 +66,10 @@ def _installed() -> set[str]:
     return {spec.name for spec in REGISTRY.specs if REGISTRY.parser(spec.name) is not None}
 
 
-def _chunk(text: str, lang: str = "python") -> list[Chunk]:
+def _chunk(text: str, lang: str = "python", kind: Kind = Kind.CODE) -> list[Chunk]:
     if REGISTRY.parser(lang) is None:
         pytest.skip(f"no {lang} grammar installed")
-    return chunk_file(text, SourceFile(repo="r", path=f"sample.{lang}", lang=lang, kind=Kind.CODE))
+    return chunk_file(text, SourceFile(repo="r", path=f"sample.{lang}", lang=lang, kind=kind))
 
 
 @requires_tree_sitter
@@ -695,6 +695,169 @@ def test_php_sample_spans_symbols_and_node_types() -> None:
 def test_php_braced_namespace_is_descended_into() -> None:
     code = "<?php\nnamespace App {\nfunction f(): int { return 1; }\n}\n"
     assert any(c.symbol == "f" for c in _chunk(code, lang="php"))
+
+
+SWIFT = (
+    "import Foundation\n\n"
+    "struct Point {\n"
+    "    let x: Int\n"
+    "    func offset(by d: Int) -> Point { self }\n"
+    "}\n\n"
+    "extension Point {\n"
+    "    func clear() {}\n"
+    "}\n\n"
+    "func makeBoard() -> Point { Point(x: 0) }\n"
+)
+
+
+@needs_grammar("swift")
+def test_swift_folds_an_extension_into_the_type_it_extends() -> None:
+    symbols = {c.symbol for c in _chunk(SWIFT, lang="swift") if c.symbol}
+    # `struct`, `class`, `enum` and `extension` are one node type, and
+    # naming an extension for what it extends puts the whole surface of
+    # a type under one symbol — which is what `--symbol Point` means.
+    assert {"Point", "Point.x", "Point.offset", "Point.clear", "makeBoard"} <= symbols
+
+
+OBJC = (
+    "@implementation Board\n\n"
+    "- (NSInteger)valueAt:(NSInteger)index {\n    return index;\n}\n\n"
+    "@end\n\n"
+    "static NSInteger clamp(NSInteger v) { return v; }\n"
+)
+
+
+@needs_grammar("objc")
+def test_objc_names_a_method_by_its_first_selector_part() -> None:
+    symbols = {c.symbol for c in _chunk(OBJC, lang="objc") if c.symbol}
+    # `valueAt`, not `valueAt:index:` — the full selector is the honest
+    # name and the wrong one to store: a reader types the word, and
+    # `normalised` folds a colon out of existence anyway.
+    assert "Board.valueAt" in symbols
+    assert "clamp" in symbols  # a plain C function, named behind its declarator
+
+
+SQL = """\
+-- Users who signed up this month.
+CREATE TABLE app_user (
+  id BIGSERIAL PRIMARY KEY
+);
+
+CREATE OR REPLACE VIEW active_user AS
+  SELECT id FROM app_user;
+
+SELECT 1;
+"""
+
+
+@needs_grammar("sql")
+def test_sql_claims_what_a_migration_creates_and_not_its_queries() -> None:
+    got = [(c.symbol, c.node_type) for c in _chunk(SQL, lang="sql")]
+    named = [s for s, _ in got if s]
+    # A table is a thing another file can name; a `SELECT` is not, so it
+    # falls to the gap pass.
+    assert named == ["app_user", "active_user"]
+    # The keyword count varies — `CREATE TABLE x` has two words before
+    # the name and `CREATE OR REPLACE VIEW x` has four — which is why
+    # the name is found by scanning rather than by position.
+    assert dict(got)["active_user"] == "create_view"
+
+
+@needs_grammar("sql")
+def test_sql_pulls_the_comment_above_a_statement_into_it() -> None:
+    chunks = {c.symbol: c for c in _chunk(SQL, lang="sql") if c.symbol}
+    assert "signed up this month" in chunks["app_user"].text
+
+
+HCL = """\
+# The public load balancer.
+resource "aws_lb" "public" {
+  name = "public-lb"
+}
+
+variable "region" {
+  default = "eu-west-1"
+}
+"""
+
+
+@needs_grammar("hcl")
+def test_hcl_names_a_block_the_way_terraform_addresses_it() -> None:
+    got = {c.symbol: c.node_type for c in _chunk(HCL, lang="hcl", kind=Kind.CONFIG) if c.symbol}
+    # `aws_lb.public`, not `resource.aws_lb.public`: `normalised` folds a
+    # name to letters and digits, and the prefix would stop it matching
+    # the address anybody actually types.
+    assert got == {"aws_lb.public": "resource", "region": "variable"}
+
+
+@needs_grammar("hcl")
+def test_hcl_attaches_a_comment_that_is_not_even_a_sibling() -> None:
+    # A file is `[comment, body[block, ...]]`, so the comment above the
+    # first block is a sibling of the body rather than of the block. The
+    # walk splices the wrapper out so document order is what counts.
+    chunks = {c.symbol: c for c in _chunk(HCL, lang="hcl", kind=Kind.CONFIG) if c.symbol}
+    assert "public load balancer" in chunks["aws_lb.public"].text
+
+
+SCALA = """\
+package io.circe
+
+/** Decodes a JSON value into an `A`. */
+trait Decoder[A] {
+  def apply(c: HCursor): Result[A]
+
+  /** Decode, accumulating failures. */
+  def decodeAccumulating(c: HCursor): Result[A] =
+    apply(c).toValidatedNel
+}
+
+final case class Json(value: String)
+
+object Decoder {
+  final def apply[A](implicit d: Decoder[A]): Decoder[A] = d
+}
+"""
+
+
+@needs_grammar("scala")
+def test_scala_qualifies_members_of_all_three_type_words() -> None:
+    symbols = {c.symbol for c in _chunk(SCALA, lang="scala") if c.symbol}
+    # `class`, `trait` and `object` are one role spelled three ways.
+    assert {"Decoder", "Decoder.apply", "Decoder.decodeAccumulating", "Json"} <= symbols
+
+
+@needs_grammar("scala")
+def test_scala_keeps_an_abstract_method_which_is_most_of_a_trait() -> None:
+    # `def apply(c: HCursor): Result[A]` has no body, and in a trait it
+    # is the whole contract — a `function_declaration`, not a definition.
+    got = [(c.symbol, c.node_type) for c in _chunk(SCALA, lang="scala")]
+    assert ("Decoder.apply", "function_declaration") in got
+
+
+@needs_grammar("scala")
+def test_scala_scaladoc_joins_the_method_below_it() -> None:
+    chunks = {c.symbol: c for c in _chunk(SCALA, lang="scala") if c.symbol}
+    assert "accumulating failures" in chunks["Decoder.decodeAccumulating"].text
+
+
+BODYLESS = {
+    "scala": "final case class Json(value: String)\n",
+    "kotlin": "data class Point(val x: Int, val y: Int)\n",
+    "csharp": "public record Point(int X, int Y);\n",
+}
+
+
+@pytest.mark.parametrize("lang", sorted(BODYLESS))
+def test_a_named_type_with_no_body_is_a_declaration_not_a_leftover(lang: str) -> None:
+    # The nested walk used to return nothing for a type it could name but
+    # whose body it could not find, on the assumption that only error
+    # recovery produces one. Three languages say otherwise, and in all
+    # three it is *the* way to declare data — so `refs Point` found no
+    # definition and `why Point` had nothing to blame.
+    if lang not in _installed():
+        pytest.skip(f"no {lang} grammar installed")
+    symbols = {c.symbol for c in _chunk(BODYLESS[lang], lang=lang)}
+    assert symbols == {"Json"} or symbols == {"Point"}
 
 
 BASH = """\

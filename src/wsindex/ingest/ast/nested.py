@@ -162,8 +162,20 @@ def type_spans(
     inner = _unwrap(node, policy)
     name = _type_name(inner, policy)
     body = _body(inner, policy)
-    if name is None or body is None:
+    if name is None:
         return []  # error-recovery leftovers fall through to gap chunks
+    if body is None:
+        # A named type with no body is not a leftover, it is a whole
+        # declaration — `case class Json(value: String)` in Scala,
+        # `data class Point(val x: Int)` in Kotlin, `record Point(int X,
+        # int Y);` in C#. All three are the idiomatic way to declare
+        # data in their language, and returning nothing here filed them
+        # as unnamed gap chunks: `refs Json` found no definition and
+        # `why Json` found nothing to blame. Claimed whole, since there
+        # are no members to split it around.
+        start, end = line_span(node)
+        mark_covered(covered, start=start, end=end)
+        return [Span(start_line=start, end_line=end, symbol=name, node_type=inner.type)]
     start, end = line_span(node)
     found: list[Span] = []
     members = body.named_children

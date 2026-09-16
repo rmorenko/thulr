@@ -29,14 +29,19 @@ from wsindex.ingest.ast import (
     csharp,
     elixir,
     go,
+    hcl,
     html,
     java,
     kotlin,
+    objc,
     php,
     python,
     ruby,
     rust,
+    scala,
     sfc,
+    sql,
+    swift,
     typescript,
 )
 from wsindex.ingest.ast.core import HAS_TREE_SITTER, SpanExtractor
@@ -458,6 +463,15 @@ BUILTIN_LANGUAGES: tuple[LanguageSpec, ...] = (
         spans=bash.spans,
     ),
     LanguageSpec(
+        name="scala",
+        kind=Kind.CODE,
+        # `.sc` is a Scala script — ammonite, scala-cli, build definitions
+        # — read by the same grammar.
+        suffixes=(".scala", ".sc"),
+        grammar=GrammarSpec(module="tree_sitter_scala", getter="language"),
+        spans=scala.spans,
+    ),
+    LanguageSpec(
         name="ruby",
         kind=Kind.CODE,
         suffixes=(".rb",),
@@ -535,6 +549,42 @@ BUILTIN_LANGUAGES: tuple[LanguageSpec, ...] = (
     # `.env` is deliberately absent. It is the file the convention
     # reserves for secrets, and a tool that indexes it puts them in a
     # vector store and, on a hosted embedder, sends them.
+    LanguageSpec(
+        name="swift",
+        kind=Kind.CODE,
+        suffixes=(".swift",),
+        grammar=GrammarSpec(module="tree_sitter_swift", getter="language"),
+        spans=swift.spans,
+    ),
+    LanguageSpec(
+        name="objc",
+        kind=Kind.CODE,
+        # `.h` stays with C. A header may be C, C++ or Objective-C and
+        # the suffix does not say which; claiming it here would take
+        # every C project's headers from the language that can parse them.
+        suffixes=(".m", ".mm"),
+        grammar=GrammarSpec(module="tree_sitter_objc", getter="language"),
+        spans=objc.spans,
+    ),
+    LanguageSpec(
+        name="sql",
+        kind=Kind.CODE,
+        suffixes=(".sql", ".psql", ".ddl"),
+        grammar=GrammarSpec(module="tree_sitter_sql", getter="language"),
+        spans=sql.spans,
+    ),
+    LanguageSpec(
+        name="hcl",
+        # CONFIG rather than CODE, and that is the whole reason to
+        # bother: `link_extract` reads declarations out of a CONFIG
+        # chunk, so `region = "eu-west-1"` in a `.tfvars` becomes a
+        # `DECLARES` edge and the spelling bridge reaches the `region`
+        # a Go or Python service reads at startup.
+        kind=Kind.CONFIG,
+        suffixes=(".tf", ".tfvars", ".hcl"),
+        grammar=GrammarSpec(module="tree_sitter_hcl", getter="language"),
+        spans=hcl.spans,
+    ),
     LanguageSpec(
         name="properties",
         kind=Kind.CONFIG,

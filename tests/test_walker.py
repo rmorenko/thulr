@@ -268,10 +268,12 @@ def test_formats_teach_one_repo_a_suffix_the_registry_has_never_heard_of(
 ) -> None:
     # The long tail without a grammar each: mark it, and the chunker's
     # text fallback does the rest.
-    (tmp_path / "schema.sql").write_text("select 1;")
-    assert inspect_file(tmp_path, "schema.sql") is None
+    # `.q` rather than `.sql`: the point is a suffix the registry does
+    # not know, and `.sql` stopped being one when the grammar landed.
+    (tmp_path / "schema.q").write_text("select 1;")
+    assert inspect_file(tmp_path, "schema.q") is None
 
-    walked = inspect_file(tmp_path, "schema.sql", formats={".sql": ("sql", Kind.CODE)})
+    walked = inspect_file(tmp_path, "schema.q", formats={".q": ("sql", Kind.CODE)})
 
     assert walked is not None
     assert (walked.lang, walked.kind) == ("sql", Kind.CODE)

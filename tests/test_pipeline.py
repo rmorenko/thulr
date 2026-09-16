@@ -577,7 +577,7 @@ def test_changed_markup_re_reads_a_tree_git_calls_unchanged(
     # reports nothing when it changes — so trusting the commit alone made
     # editing the markup a silent no-op: the newly indexable file stayed
     # invisible until someone deleted the index by hand.
-    (tmp_path / "repo1" / "schema.sql").write_text("CREATE TABLE users (id INT);\n")
+    (tmp_path / "repo1" / "schema.q").write_text("CREATE TABLE users (id INT);\n")
     subprocess.run(["git", "add", "-A"], cwd=tmp_path / "repo1", check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-qm", "sql"], cwd=tmp_path / "repo1", check=True, capture_output=True
@@ -585,7 +585,7 @@ def test_changed_markup_re_reads_a_tree_git_calls_unchanged(
     pipeline.index()
     assert pipeline.index().files == 0  # nothing changed, and nothing was read
 
-    config._data["repos"][0]["formats"] = {".sql": {"lang": "sql", "kind": "code"}}
+    config._data["repos"][0]["formats"] = {".q": {"lang": "sql", "kind": "code"}}
     report = pipeline.index()
 
     assert report.full_repos == (("repo1", FullPass.MARKUP_CHANGED),)
@@ -885,22 +885,22 @@ def test_a_language_nobody_claims_is_reported_not_passed_over(
     # repos. Skipping a `LICENSE` is policy and not news. Skipping a
     # *language* is, and nothing said so.
     #
-    # Written with Elixir, because that was the language it happened to.
-    # Elixir has a grammar now — the 50 harvested questions it made
-    # unreachable were what bought it — so the case is spelled in Swift,
-    # which is today's version of the same silence. The warning is about
-    # any language nobody claims, not about that one.
+    # Written with Elixir, then Swift, now Haskell — rewritten twice in
+    # one day because each language it named acquired a grammar. That is
+    # the coverage work landing rather than the test being fragile: what
+    # is pinned is the warning, which is about any language nobody
+    # claims and never about a particular one.
     source = tmp_path / "repo1" / "src"
     for n in range(12):
-        (source / f"mod{n}.swift").write_text(f"struct M{n} {{}}\n")
-    (source / "Package.swiftpm").write_text("// manifest\n")
+        (source / f"mod{n}.hs").write_text(f"module M{n} where\n")
+    (source / "Setup.lhs").write_text("> main = return ()\n")
     commit(tmp_path / "repo1")
 
     report = pipeline.index()
 
     assert report.mostly_unclaimed
     assert report.unclaimed_files == 13
-    assert dict(report.unclaimed) == {".swift": 12, ".swiftpm": 1}
+    assert dict(report.unclaimed) == {".hs": 12, ".lhs": 1}
 
 
 def test_the_odd_unclaimed_file_is_not_worth_a_warning(
