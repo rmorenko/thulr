@@ -1,4 +1,33 @@
-"""Routing a file to a chunker — the pipeline's single entry point."""
+"""Routing a file to a chunker — the pipeline's single entry point.
+
+**Whether the syntax tree is worth having depends on the model, and the
+answer flips.** Asked on 204 harvested questions, with the parser taken
+away to fall back on sliding windows and nothing else changed:
+
+| embedder | tree: file / chunk | windows: file / chunk |
+| --- | --- | --- |
+| all-MiniLM-L6-v2 (local) | 97 / 44 | **102 / 51** |
+| voyage-code-4 (hosted) | **130 / 74** | 119 / 61 |
+
+Under the hosted model the tree wins — 18 questions to 5 on the chunk
+metric, p = 0.011. Under the local one the order reverses, by a margin
+that is not significant (10 to 17, p = 0.25).
+
+The reversal has a mechanism and it is the same one that runs through
+everything else measured here: the local model does not read the code
+body at all — removing it costs nothing — so there is nothing for
+structure to organise, and a forty-line window wins on the dull ground
+that it fits inside a 256-token budget whole, where a seventy-line
+function does not. A model that does read the body needs the body cut
+where its meaning is: a chunk that *is* a function against a window
+holding the tail of one and the head of the next.
+
+So the tree is not a first-day assumption carried forward. It is the
+shape the best available configuration needs, and its value grows with
+the model rather than shrinking. It also carries what nothing else can:
+`why` finds a definition by the symbol a tree named, and the `DEFINES`
+anchors `refs` stands on come from the same place.
+"""
 
 from dataclasses import replace
 from typing import assert_never
