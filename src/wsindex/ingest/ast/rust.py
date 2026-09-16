@@ -5,6 +5,13 @@ from __future__ import annotations
 from wsindex.ingest.ast.nested import NestedPolicy, extractor
 
 POLICY = NestedPolicy(
+    # `mod foo { ... }` is descended into, not chunked. Without this the
+    # whole module became one unnamed chunk and every definition inside
+    # it lost its name: measured across forty Rust files in the corpus,
+    # 56 modules swallowing 53 functions. Rust organises a file that way
+    # constantly — `mod tests` at the bottom of almost every source file,
+    # and real submodules above it.
+    containers=("mod_item",),
     types=("impl_item",),
     members=("function_item",),
     standalone=("function_item", "struct_item", "enum_item", "trait_item"),
