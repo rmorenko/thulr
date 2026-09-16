@@ -133,6 +133,22 @@ def retrieval_text(chunk: Chunk) -> str:
     score 98 apiece and **disagree on 22 questions**, eleven each. Equal
     totals, different tool.
 
+    **And a code model on this hardware is hurt by the code.** Asked the
+    same way, `CodeRankEmbed` scores 91 with the body and **100**
+    without it — fourteen questions for the body against twenty-three
+    for the prose, p = 0.19. So the body is noise to a small general
+    model, noise it can be misled by to a small code model, and signal
+    to a large one. That is the whole of why the sweep came out the way
+    it did: three models trained on code all lose to a general model a
+    quarter their size, because the thing they were trained to read is
+    the thing that misleads them at that size.
+
+    It is a finding and not a change. Sending prose alone would gain
+    nothing for the model that ships, gain 9 for a model nobody here
+    recommends, and cost 25 for the best configuration available. What it
+    is good for is choosing: feed prose to a small code model, feed
+    everything to a large one.
+
     Chunk ids do not move: `Chunk.chunk_id` hashes the stored text and
     the path, neither of which this touches. Vectors do, so changing it
     means re-indexing.
