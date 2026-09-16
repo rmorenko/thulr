@@ -241,6 +241,26 @@ questions:
 | bge-large-en-v1.5              |   335M |         11 |           1 |          3 | 488 s |
 | **CodeRankEmbed**              |   137M |     **13** |           2 |          3 | 249 s |
 
+**Re-measured on the harvested questions, none of them wins.** That table
+grades sixty questions written for this purpose; the 204 taken from issue
+trackers say something blunter, on two axes — the right file in the top
+ten, and a chunk that actually holds the line the fix changed:
+
+| Model                      | Right file | Right chunk |
+| -------------------------- | ---------: | ----------: |
+| **all-MiniLM-L6-v2** (23M) |     **97** |      **44** |
+| all-mpnet-base-v2 (110M)   |         93 |          41 |
+| CodeRankEmbed (137M)       |         91 |          40 |
+| unixcoder-base (125M)      |         85 |          36 |
+| `voyage-code-4` (hosted)   |    **130** |      **74** |
+
+The 23M model that ships is the best of them. A general model five times
+larger is worse; two models trained on code are worse. Reading code turns
+out to be necessary and not sufficient — which is worth saying because
+the hosted model's advantage looked, from one angle, like exactly that
+and nothing more. Window size is not the explanation either:
+CodeRankEmbed scores the same at 512, 1 024 and 2 048 tokens.
+
 **And then there is the ceiling, which none of them is.** Every model
 above runs on a laptop, which is what the locality promise costs; the
 question of what the *design* can do needed a model that does not.

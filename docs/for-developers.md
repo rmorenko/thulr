@@ -125,11 +125,12 @@ restricting to code and docs scores 77 against the unrestricted 79. The
 the top ten — a local cross-encoder over the same fifty candidates
 scores 74 against 79 when it decides, and 80 when it votes.
 
-**There is a second model, and it is a trade.** `CodeRankEmbed` lifts
-identifier answers from 9 of 20 to 13, and from 1 to 4 at rank one — and
-drops descriptive from 4 to 2. If what you do is find where things live,
-it is the better choice; see the README for the four config lines it
-needs and the reasons each one exists.
+**Do not bother swapping the local model.** Four were measured against
+the shipped one on the 204 harvested questions: a general model five
+times larger, two trained on code, and the 23M default. The default wins
+both axes — right file 97, and a chunk that holds the answer 44 of 135,
+against 93/41, 91/40 and 85/36. The hosted `voyage-code-4` scores 130 and
+74, so the gap is real; it is just not one a local model closes.
 
 **If your language is not in the table, you get an empty index and no
 warning.** Scala has no entry, so those files are not chunked
