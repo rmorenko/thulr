@@ -103,6 +103,36 @@ def retrieval_text(chunk: Chunk) -> str:
     this everywhere and applying it to code only scored identically, so
     the version that keeps a sha out of a vector is the one to keep.
 
+    **The body stays, and which model reads it decides that.** The
+    obvious economy here is to send the prose — the name, the path, the
+    comments — and leave 1.8 million lines of code out of the vector. It
+    was measured on 204 harvested questions, three ways: the whole chunk,
+    the prose only, and the name and path alone.
+
+    | what the embedder got | all-MiniLM-L6-v2 | voyage-code-4 |
+    | --- | ---: | ---: |
+    | name, path, whole chunk | 98 | **130** |
+    | name, path, prose only | 98 | 105 |
+    | name and path only | 67 | — |
+
+    Under the shipped local model the body is worth **nothing**: 11
+    questions gained and 11 lost, p = 1.0. Under a model trained on code
+    it is worth 25 — 35 gained against 10 lost, p = 0.0002. So whether
+    code belongs in a vector is not a fact about code, it is a fact about
+    the model, and writing the economy in would have quietly capped the
+    only configuration that clears 130.
+
+    It also says where the remote arm's advantage comes from. Hosted
+    scores 130 against local's 98, and hosted *on prose alone* scores
+    105 — so about 25 of those 32 points are "it can read code" rather
+    than "its vectors are better". The pipeline sweep that preceded this
+    bought 14 points; the model is worth twice that, which is the honest
+    ordering of what is left to do.
+
+    The prose row is not a tie either way: local prose and local body
+    score 98 apiece and **disagree on 22 questions**, eleven each. Equal
+    totals, different tool.
+
     Chunk ids do not move: `Chunk.chunk_id` hashes the stored text and
     the path, neither of which this touches. Vectors do, so changing it
     means re-indexing.
