@@ -697,6 +697,50 @@ def test_php_braced_namespace_is_descended_into() -> None:
     assert any(c.symbol == "f" for c in _chunk(code, lang="php"))
 
 
+BASH = """\
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Push one artefact to the registry.
+push_artifact() {
+  docker push "registry.invalid/$1"
+}
+
+# A detached note.
+
+function rollback {
+  echo "rolling back"
+}
+"""
+
+
+@needs_grammar("bash")
+def test_bash_claims_functions_in_both_spellings() -> None:
+    got = [(c.symbol, c.node_type) for c in _chunk(BASH, lang="bash")]
+    assert [s for s, _ in got if s] == ["push_artifact", "rollback"]
+    # `name() {}` and `function name {}` are one node type in the
+    # grammar, which is most of why this extractor is four lines.
+    assert {t for s, t in got if s} == {"function_definition"}
+
+
+@needs_grammar("bash")
+def test_bash_attaches_the_comment_block_above_a_function() -> None:
+    chunks = {c.symbol: c for c in _chunk(BASH, lang="bash") if c.symbol}
+    # A shell script's only documentation is the `#` block above the
+    # function; filed apart from it, it stops being findable with it.
+    assert "Push one artefact" in chunks["push_artifact"].text
+    # And a blank line detaches, the same rule Go's doc comments follow.
+    assert "A detached note" not in chunks["rollback"].text
+
+
+@needs_grammar("bash")
+def test_bash_covers_every_non_blank_line() -> None:
+    chunks = _chunk(BASH, lang="bash")
+    covered = {line for c in chunks for line in range(c.start_line, c.end_line + 1)}
+    non_blank = {i for i, line in enumerate(BASH.splitlines(), 1) if line.strip()}
+    assert non_blank <= covered
+
+
 ELIXIR = """\
 defmodule Pow.Store.Cache do
   @moduledoc "Not attached to anything below it."

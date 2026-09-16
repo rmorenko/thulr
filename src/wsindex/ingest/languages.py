@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from wsindex.ingest.ast import (
+    bash,
     c,
     configs,
     cpp,
@@ -444,6 +445,19 @@ BUILTIN_LANGUAGES: tuple[LanguageSpec, ...] = (
         spans=elixir.spans,
     ),
     LanguageSpec(
+        name="bash",
+        kind=Kind.CODE,
+        # `.zsh` and `.ksh` are read by the bash grammar rather than
+        # their own. It mis-parses the dialect-only corners, and the
+        # parser is error tolerant, so the cost is a few lines falling
+        # to the gap pass instead of a chunk — against not reading the
+        # file at all, which is what happens without an entry.
+        suffixes=(".sh", ".bash", ".zsh", ".ksh"),
+        filenames=("configure",),
+        grammar=GrammarSpec(module="tree_sitter_bash", getter="language"),
+        spans=bash.spans,
+    ),
+    LanguageSpec(
         name="ruby",
         kind=Kind.CODE,
         suffixes=(".rb",),
@@ -509,6 +523,27 @@ BUILTIN_LANGUAGES: tuple[LanguageSpec, ...] = (
         # grammar here whose getter is not the usual name.
         grammar=GrammarSpec(module="tree_sitter_xml", getter="language_xml"),
         spans=configs.xml_spans,
+    ),
+    # Two config formats with no grammar between them, and none needed.
+    # `chunk_file` windows a CONFIG language that has no parser, and
+    # `link_extract` decides to read declarations from `chunk.kind is
+    # Kind.CONFIG` rather than from a tree — so `app.timeout=30` in a
+    # `.properties` file becomes a `DECLARES` edge the moment the file
+    # is claimed, and the spelling bridge reaches `appTimeout` in the
+    # code with nothing further built.
+    #
+    # `.env` is deliberately absent. It is the file the convention
+    # reserves for secrets, and a tool that indexes it puts them in a
+    # vector store and, on a hosted embedder, sends them.
+    LanguageSpec(
+        name="properties",
+        kind=Kind.CONFIG,
+        suffixes=(".properties",),
+    ),
+    LanguageSpec(
+        name="ini",
+        kind=Kind.CONFIG,
+        suffixes=(".ini", ".cfg", ".conf"),
     ),
     LanguageSpec(
         name="dockerfile",

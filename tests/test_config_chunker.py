@@ -8,6 +8,8 @@ import pytest
 
 from wsindex.ingest.chunker import chunk_file
 from wsindex.ingest.languages import REGISTRY
+from wsindex.ingest.link_extract import links_for
+from wsindex.links import LinkKind, normalised
 from wsindex.model import Chunk, Kind, SourceFile
 
 TOML = """\
@@ -256,3 +258,43 @@ def test_xml_a_container_tag_never_becomes_a_chunk_of_its_own() -> None:
     assert runs[0].text.lstrip().startswith("<dependencies>")
     assert runs[-1].text.rstrip().endswith("</dependencies>")
     assert not any(c.text.strip() in ("<dependencies>", "</dependencies>") for c in chunks)
+
+
+# --- config formats with no grammar ---------------------------------------
+
+PROPERTIES = """\
+# Connection settings for the reporting service.
+db.pool.maxRetries=5
+db.pool.timeoutSeconds=30
+feature.newDashboard=true
+"""
+
+
+def test_a_config_format_without_a_grammar_is_still_claimed() -> None:
+    # `.properties` and `.ini` have no tree-sitter grammar on PyPI, and
+    # do not need one: `chunk_file` windows a CONFIG language with no
+    # parser, and everything that makes a config useful here reads the
+    # kind rather than a tree.
+    chunks = chunk_file(
+        PROPERTIES,
+        SourceFile(repo="r", path="app.properties", lang="properties", kind=Kind.CONFIG),
+    )
+    assert chunks
+    assert all(c.kind == Kind.CONFIG.value for c in chunks)
+    assert "db.pool.maxRetries=5" in "".join(c.text for c in chunks)
+
+
+def test_a_dotted_key_also_declares_its_last_segment() -> None:
+    # The half the code spells. YAML nests by indentation, so
+    # `maxRetries:` arrives alone and the bridge to `max_retries`
+    # reaches it unaided; `.properties` writes the whole path on one
+    # line, and `normalised` folds that to `dbpoolmaxretries`, which
+    # matches nothing anybody types in code.
+    chunks = chunk_file(
+        PROPERTIES,
+        SourceFile(repo="r", path="app.properties", lang="properties", kind=Kind.CONFIG),
+    )
+    declared = {link.name for link in links_for(chunks) if link.kind is LinkKind.DECLARES}
+    assert "db.pool.maxRetries" in declared  # the key as written
+    assert "maxRetries" in declared  # and the half code uses
+    assert normalised("max_retries") in {normalised(n) for n in declared}

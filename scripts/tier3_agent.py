@@ -85,17 +85,36 @@ the tools are listed, and the first call stops for a permission that
 nothing in a headless run can grant — which would have measured wsindex
 by never letting it answer."""
 
-ARMS = ("without", "local", "remote")
+ARMS = ("without", "local", "primed")
 """Three arms in one run, because the agent's spread between runs is
 wider than the effect being measured: the same twelve tasks gave the
 **unchanged** control 36 743 mean tokens one evening and 51 415 the
 next, so anything compared across two runs measures the evening.
 
-`remote` exists because every agent measurement so far ran on the local
-default — the one configuration already measured to *tie* ripgrep, 65
-against 60 at depth ten. A hosted embedder takes that to 109. Handing
-the agent the weakest setting and concluding the tool does not help is
-not a conclusion about the tool."""
+`primed` is here because the first four runs measured a sum and reported
+it as one thing. "Does the tool help" is two questions — is the
+information useful, and will the agent reach for it — and an arm that
+hands the answer over without being asked separates them. `local` and
+`primed` read the same index, so the only difference between them is
+delivery; `without` and `primed` differ only in whether the agent was
+told anything. If priming does not help either, the information was
+never the bottleneck, and that is a conclusion with a mechanism rather
+than a fourth tally of "dearer"."""
+
+PRIMED = """
+
+Before you started, the workspace index was asked this question. Its
+five best answers, closest first:
+
+{hits}
+They are a starting point and may be wrong; check before trusting one."""
+"""What the `primed` arm adds to the task, and nothing else.
+
+`wsindex search -k 5` as it ships, which is about 125 tokens — one line
+per hit, a location and the first line of what is there. Deliberately
+not the chunk text: an answer through MCP costs about 2 200 tokens and
+that cost is half of what the tool arm has been losing on. Pointers are
+what a reader needs to decide where to look."""
 
 REMOTE = {
     "model": "voyage-code-4",
@@ -110,14 +129,28 @@ a team would type, so what is graded is what ships. `token_env` names a
 variable and never holds a key; the value reaches the indexer and the
 MCP server through the environment they inherit, and is written nowhere."""
 
-WORKSPACE_PROMPT = """A user filed this issue against the `{repo}` repository,
-which is one of several checked out in this working directory:
+WORKSPACE_PROMPT = """A user filed this issue against one of the
+repositories checked out in this working directory:
 
     {title}
 
-Find what causes it and fix it by editing the files here. Make the
-smallest change that addresses the issue. Do not write tests, do not
-commit, and do not explain at length — the edit is the answer."""
+Work out which repository it belongs to, then find what causes it and
+fix it by editing the files here. Make the smallest change that
+addresses the issue. Do not write tests, do not commit, and do not
+explain at length — the edit is the answer."""
+"""The task, with the repository deliberately not named.
+
+The first draft named it, and a transcript showed why that was a wasted
+run: the agent listed the workspace, ran two greps across it, `cd`'d
+into the named repository and spent the rest of the task inside it. The
+haystack grew for about a minute and then the measurement was the
+single-repo one we had already run three times.
+
+Not naming it is the question this tool actually claims to answer — one
+question, several repositories, without remembering which holds what —
+and it is fair, because both arms face the same missing fact. Grading is
+unchanged: the truth is still the files the real pull request touched,
+and an edit in the wrong repository is graded as the miss it is."""
 
 PROMPT = """A user filed this issue against this repository:
 
@@ -392,6 +425,26 @@ def workspace(org: str, repos: list[str], task_repo: str, sha: str, label: str) 
     return root if (root / task_repo / ".git").exists() else None
 
 
+def primed(home: Path, title: str, prompt: str) -> str:
+    """The task, with what the index says about it already in hand.
+
+    Asked through the shipped binary rather than the library, for the
+    same reason the rest of this harness shells out: what is graded has
+    to be what a workspace would get.
+    """
+    done = subprocess.run(
+        [str(BINARY), "search", title, "-k", "5"],
+        cwd=home,
+        env={**os.environ, "WSINDEX_CONFIG": str(home / "wsindex.toml")},
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        timeout=600,
+    )
+    hits = done.stdout.strip()
+    return prompt + PRIMED.format(hits=hits) if hits else prompt
+
+
 def indexed(where: Path, *, remote: bool = False, repos: list[str] | None = None) -> Path:
     """A wsindex workspace over this tree, and the MCP config for it.
 
@@ -547,8 +600,9 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
         "  the repository **at the commit before the fix**.",
         "- Every arm keeps every ordinary tool; two of them add wsindex over",
         "  MCP and take nothing away — a developer with it still has grep.",
-        "- `local` and `remote` differ in **nothing but the embedder**: the",
-        "  shipped default against a hosted one, same code, same evening.",
+        "- `local` and `primed` read **the same index**, so what differs",
+        "  between them is delivery: one is a server the agent may call, the",
+        "  other is five ranked locations handed over in the task itself.",
         "- Graded against the diff the maintainers merged, in the parent's",
         "  line numbers so the two are comparable.",
         (
@@ -565,11 +619,12 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
         "",
         "## The gate, declared before the run",
         "",
-        "`remote` lands on the same lines at least as often as `without`",
-        "and spends fewer tokens — counted in **paired** tasks, not in a",
-        "mean, because one control that thrashes carries a mean on its own.",
-        "And it beats `local`: if the stronger index changes nothing the",
-        "agent does, then search quality is not what was holding it back.",
+        "`primed` lands on the same lines more often than `without`,",
+        "counted in **paired** tasks rather than a mean, because one control",
+        "that thrashes carries a mean on its own. That is the whole question",
+        "this arm exists for: if handing the answer over changes nothing,",
+        "the information was never what the agent was short of, and no",
+        "amount of making it easier to ask for will help.",
         "",
         "## Results",
         "",
@@ -701,15 +756,18 @@ def main() -> int:
             )
             if where is None:
                 continue
-            mcp = (
-                None if arm == "without" else indexed(where, remote=arm == "remote", repos=siblings)
-            )
+            built = None if arm == "without" else indexed(where, repos=siblings)
+            # `primed` gets the index and no server: the answer is handed
+            # over inside the task, so there is nothing for it to call.
+            mcp = built if arm == "local" else None
             keep = TRANSCRIPTS / f"{task.repo}-{task.number}-{arm}.jsonl"
             prompt = (
-                WORKSPACE_PROMPT.format(repo=task.repo, title=task.title)
+                WORKSPACE_PROMPT.format(title=task.title)
                 if siblings
                 else PROMPT.format(title=task.title)
             )
+            if arm == "primed" and built is not None:
+                prompt = primed(built.parent, task.title, prompt)
             attempt = grade(
                 run_agent(where, prompt, mcp, keep),
                 where,

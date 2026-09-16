@@ -133,6 +133,18 @@ def _declarations(text: str) -> Iterable[tuple[str, int]]:
         key = _CONFIG_KEY.match(line)
         if key is not None and len(key.group(1)) >= _MIN_KEY:
             yield key.group(1), offset
+            # A dotted key also declares its last segment, because that
+            # is the half the code spells. YAML nests by indentation, so
+            # `maxRetries:` arrives on its own and the spelling bridge
+            # reaches `max_retries` unaided; `.properties` and `.ini`
+            # write `db.pool.maxRetries=5` on one line, and
+            # `normalised` folds that to `dbpoolmaxretries`, which
+            # matches nothing anybody wrote in code. Without this the
+            # bridge — the one thing here that grep cannot do at all —
+            # is off in precisely the format that always dots its keys.
+            tail = key.group(1).rsplit(".", 1)[-1]
+            if tail != key.group(1) and len(tail) >= _MIN_KEY:
+                yield tail, offset
         mapping = _PUBLISHED_PORT.match(line)
         if mapping is not None:
             yield mapping.group(1), offset

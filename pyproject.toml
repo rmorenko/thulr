@@ -71,6 +71,7 @@ ast = [
   "tree-sitter-xml>=0.7,<1",
   "tree-sitter-yaml>=0.7,<1",
   "tree-sitter-elixir>=0.3,<1",
+  "tree-sitter-bash>=0.25,<1",
 ]
 
 [dependency-groups]
