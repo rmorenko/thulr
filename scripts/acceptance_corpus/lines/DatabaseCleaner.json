@@ -1,0 +1,8 @@
+{
+ "database_cleaner-active_record-106": {
+  "database_cleaner-active_record/lib/database_cleaner/active_record/base.rb": [
+   17,
+   19
+  ]
+ }
+}

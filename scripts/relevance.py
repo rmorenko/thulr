@@ -124,6 +124,21 @@ class Graded:
     control: str
     control_files: int
     commits_in_top3: int
+    line_rank: int | None = None
+    """Rank of the first hit whose chunk actually *covers* a line the fix
+    changed, or None when it never does. `None` also means "no line truth
+    for this question", which `has_lines` separates."""
+
+    has_lines: bool = False
+    """Whether line truth exists here at all. Without it the question sits
+    out of the line-level score rather than counting as a miss — a fix
+    whose lines were rewritten later has no findable place, and charging
+    that to retrieval would be the same coverage-as-quality mistake the
+    reachability split exists to avoid."""
+
+    @property
+    def line_hit10(self) -> bool:
+        return self.has_lines and self.line_rank is not None and self.line_rank <= 10
 
     @property
     def hit3(self) -> bool:
@@ -367,6 +382,40 @@ def rank_of(hits: list[Hit], truth: str) -> int | None:
     return None
 
 
+def line_rank_of(hits: list[Hit], lines: dict[str, list[int]]) -> int | None:
+    """Rank of the first hit whose chunk holds a line the fix changed.
+
+    The file-level rank cannot see chunking: move a doc comment from one
+    chunk of a file into another and the file sits at the same rank, so
+    every chunking change scores exactly zero. This is the same question
+    asked of the chunk instead — did what came back actually contain the
+    answer, or merely come from the right file.
+    """
+    for index, hit in enumerate(hits, start=1):
+        meta = hit.metadata
+        wanted = lines.get(f"{meta.get('repo')}/{meta.get('path')}")
+        if not wanted:
+            continue
+        start, end = hit.start_line, hit.end_line
+        if any(start <= line <= end for line in wanted):
+            return index
+    return None
+
+
+def line_truth(org: str) -> dict[str, dict[str, list[int]]]:
+    """Line truth for one organisation, or nothing if it was never built.
+
+    Derived by `scripts/truth_lines.py` from blame, and kept beside the
+    questions rather than inside them: the questions are the frozen record
+    of what was asked, and this is read off a repository that moves.
+    """
+    path = CORPUS / "lines" / f"{org}.json"
+    if not path.is_file():
+        return {}
+    loaded: dict[str, dict[str, list[int]]] = json.loads(path.read_text(encoding="utf-8"))
+    return loaded
+
+
 def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     """A pipeline over one freshly indexed workspace.
 
@@ -521,7 +570,9 @@ def _grade_harvested(
       hand-written `rg_query` and writing one now would mean writing it
       with the answer in view.
     """
+    wanted_lines = line_truth(org)
     pipeline = build(org, repos, root)
+    wanted_lines = line_truth(org)
     started = time.perf_counter()
     report = pipeline.index()
     space = Workspace(
@@ -545,8 +596,11 @@ def _grade_harvested(
         ranks = [r for r in (rank_of(hits, a) for a in answers) if r is not None]
         deep_ranks = [r for r in (rank_of(deep, a) for a in answers) if r is not None]
         outcome, count, query = best_control(root, item["text"], item["truth"])
+        lines = wanted_lines.get(item["id"], {})
         space.graded.append(
             Graded(
+                line_rank=line_rank_of(hits, lines) if lines else None,
+                has_lines=bool(lines),
                 id=item["id"],
                 klass="harvested",
                 text=item["text"],
@@ -632,6 +686,29 @@ def report_on(spaces: list[Workspace]) -> str:
             f"{sum(g.hit10 for g in group)} | {sum(g.deep_rank is not None for g in group)} | "
             f"{sum(g.control == 'found' for g in group)} |"
         )
+    scored = [g for g in every if g.has_lines]
+    if scored:
+        lines += [
+            "",
+            "## Did the chunk hold the answer, or merely the right file?",
+            "",
+            "A file-level hit cannot see chunking: move a doc comment from one "
+            "chunk of a file into another and the file keeps its rank, so every "
+            "chunking change scores exactly zero. This asks the same question "
+            "of the chunk — whether what came back *contains* a line the fix "
+            "changed.",
+            "",
+            "Truth is blame: the commit that closed the issue is found in the "
+            "clone by its pull request number, and the lines it still owns at "
+            "the pinned commit are where the answer lives now. A fix later "
+            "rewritten owns nothing and its question sits this out rather than "
+            "counting as a miss.",
+            "",
+            f"**{sum(g.line_hit10 for g in scored)} of {len(scored)}** questions "
+            f"with line truth got a chunk holding the answer in the top ten, "
+            f"against {sum(g.hit10 for g in scored)} that got the right file.",
+            "",
+        ]
     unreachable = [g for g in every if not g.reachable]
     if unreachable:
         lines += [
