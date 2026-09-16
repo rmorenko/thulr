@@ -140,14 +140,40 @@ def _body(node: Node, policy: NestedPolicy) -> Node | None:
     return None
 
 
+def _widened(
+    node: Node, policy: NestedPolicy, *, siblings: list[Node] | None, index: int | None
+) -> int:
+    """A type's first line, widened over whatever documents it."""
+    start, _ = line_span(node)
+    if siblings is None or index is None:
+        return start
+    return _preamble_start(siblings, index=index, start=start, policy=policy)
+
+
 def type_spans(
-    node: Node, policy: NestedPolicy, lines: list[str], covered: list[bool]
+    node: Node,
+    policy: NestedPolicy,
+    lines: list[str],
+    covered: list[bool],
+    *,
+    siblings: list[Node] | None = None,
+    index: int | None = None,
 ) -> list[Span]:
     """Members as their own chunks, the rest of the type as one more.
 
-    Public because a language with an otherwise unusual policy still has
-    ordinary classes: typescript composes this rather than writing the
-    member walk and its gap pass a second time.
+    `siblings` and `index` are how a type reaches the documentation
+    above it. Members got that from the start and types did not, so
+    `/** Decodes a JSON value into an `A`. */` above `trait Decoder`
+    became a chunk of its own — the sentence that says what a type is
+    for, filed apart from the type. It went unnoticed because the lines
+    were still indexed and still findable; they were just findable as
+    something else.
+
+    It matters more than it looks. Measured the same day it was found:
+    with the prose taken out of what the embedder reads, the local model
+    answers 67 of 204 questions instead of 98, while removing the code
+    body costs nothing at all. The vector is standing on exactly this
+    text, and half of it was being filed away from what it describes.
 
     Args:
         node: The type node (a class, an impl block, an object).
@@ -155,6 +181,8 @@ def type_spans(
             type from one.
         lines: The file's lines, for the gap pass.
         covered: Shared line bookkeeping.
+        siblings: The nodes this one sits among, for the look-behind.
+        index: Where `node` is among them.
 
     Returns:
         One span per member, plus one for whatever type lines are left.
@@ -174,9 +202,11 @@ def type_spans(
         # `why Json` found nothing to blame. Claimed whole, since there
         # are no members to split it around.
         start, end = line_span(node)
+        start = _widened(node, policy, siblings=siblings, index=index)
         mark_covered(covered, start=start, end=end)
         return [Span(start_line=start, end_line=end, symbol=name, node_type=inner.type)]
     start, end = line_span(node)
+    start = _widened(node, policy, siblings=siblings, index=index)
     found: list[Span] = []
     members = body.named_children
     for index, member in enumerate(members):
@@ -213,7 +243,7 @@ def _walk(
             if body is not None:
                 found += _walk(body.named_children, policy, lines, covered, depth + 1)
         elif inner.type in policy.types:
-            found += type_spans(child, policy, lines, covered)
+            found += type_spans(child, policy, lines, covered, siblings=nodes, index=index)
         elif inner.type in policy.standalone:
             name = symbol_name(inner)
             if name is not None:

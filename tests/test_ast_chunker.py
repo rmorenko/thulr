@@ -304,8 +304,12 @@ interface Options {
 def test_java_sample_spans_symbols_and_node_types() -> None:
     got = [(c.start_line, c.end_line, c.symbol, c.node_type) for c in _chunk(JAVA, lang="java")]
     assert got == [
-        (1, 5, None, None),  # package + import + javadoc (sibling comment)
-        (6, 8, "Greeter", "class_declaration"),  # @Deprecated + header + field
+        # Package and import only. The javadoc used to land here too —
+        # this test named it "(sibling comment)" and pinned it — because
+        # the policy declared no preamble, so the sentence describing
+        # `Greeter` was filed in the chunk above `Greeter`.
+        (1, 3, None, None),
+        (5, 8, "Greeter", "class_declaration"),  # javadoc + @Deprecated + header + field
         (10, 12, "Greeter.Greeter", "constructor_declaration"),
         (14, 17, "Greeter.greet", "method_declaration"),  # @Override inside
         (18, 18, "Greeter", "class_declaration"),  # closing }
