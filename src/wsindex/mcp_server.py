@@ -11,6 +11,27 @@ remotes.
 `build()` knows nothing about transport. `wsindex mcp` runs it over
 stdio, which is what an editor spawns; `wsindex serve` mounts the same
 object on HTTP. One implementation of the tools, two ways in.
+
+**Who this is for, measured.** Nine runs against a headless agent say
+these tools do not help one that has the repositories on disk. Fixing
+harvested bugs: no gain, six ways. Answering "where does this live" on
+26 questions: 16 right without the tools, 15 with the local embedder, 16
+with the hosted one. The same 26 with the shell taken away, so the agent
+had `Read` and `Glob` and nothing else: 13 without, 13 with. Removing
+grep cost the control three answers and cost this server's caller the
+same three.
+
+The reason is in the transcripts and it is not a retrieval failure. The
+agent called these tools in every single run, and they put the right
+file in front of it 69% of the time on the local embedder, 81% hosted,
+96% once grep was gone. What did not move was the answer. An agent that
+can open files reaches them anyway; the retrieval it cannot do for
+itself is not the part it is short of.
+
+So the caller these tools are for is the one that cannot open a file —
+an agent with no filesystem and no git, for which this is the only way
+in. That is why `k` defaults higher here than in the CLI, and why the
+reply carries `unsearched`: both are for a caller that cannot check.
 """
 
 from __future__ import annotations
@@ -62,7 +83,33 @@ def build(pipeline: Pipeline | None = None) -> FastMCP:
     @server.tool()
     def search(
         query: Annotated[str, Field(description="What to look for, in natural language")],
-        k: Annotated[int, Field(description="How many hits", ge=1, le=50)] = 10,
+        # Twenty, where the CLI's is ten, and the difference is the
+        # caller. A person reads `file:line` and opens the file; this
+        # caller may have no file to open, and then the reply is the
+        # whole answer. Asked on 135 questions with line-level truth —
+        # does what came back *contain* the lines the fix changed —
+        # against the median lines of text a reply carries:
+        #
+        #   k=10   74 answered,   515 lines     k=10   44,  261  (local)
+        #   k=20   92 answered,   956 lines     k=20   57,  509
+        #   k=30   98 answered,  1371 lines     k=30   66,  720
+        #
+        # Twenty is the knee on the hosted model: the step to it buys an
+        # answer per 24 lines, the step past it one per 69. A caller that
+        # can open files should pass a smaller k, one that cannot should
+        # pass 30 — and the description says so, because an agent does
+        # not read this comment.
+        k: Annotated[
+            int,
+            Field(
+                description=(
+                    "How many hits. Lower it to 10 if you can open the files yourself; "
+                    "raise it to 30 if this reply is all you will see of the code"
+                ),
+                ge=1,
+                le=50,
+            ),
+        ] = 20,
         repo: Annotated[str | None, Field(description="Restrict to one repo id")] = None,
         lang: Annotated[list[str] | None, Field(description="Languages (OR)")] = None,
         kind: Annotated[
@@ -77,6 +124,11 @@ def build(pipeline: Pipeline | None = None) -> FastMCP:
         # 70 where no budget keeps it for 98, and 800 keeps 53. Half the
         # tokens cost 28 answers. A caller who knows its own context
         # window can still say so; this is not a default worth having.
+        #
+        # It is also the right knob now that `k` defaults higher: a
+        # caller that wants less should cap the tokens and let the tail
+        # of the ranking go, rather than ask for fewer hits and get the
+        # same narrow slices of the same few files.
         budget: Annotated[
             int | None,
             Field(description="Cap the returned text at this many tokens", ge=1),

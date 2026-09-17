@@ -190,3 +190,26 @@ async def test_without_a_budget_the_answer_says_nothing_about_one(server: FastMC
 
     assert "tokens" not in answer
     assert "dropped_for_budget" not in answer
+
+
+@pytest.mark.anyio
+async def test_the_default_k_is_the_one_measured_for_a_caller_with_no_files(
+    server: FastMCP,
+) -> None:
+    """Twenty, not the CLI's ten, and the schema has to say why.
+
+    The default is the only one of these tools' settings that a caller
+    which never reads the documentation still gets. On 135 questions
+    with line-level truth, asking whether the reply *contains* the lines
+    the fix changed rather than merely names the file, k=10 answers 74
+    and k=20 answers 92 — the whole difference for a caller that cannot
+    open the file and read it for itself.
+    """
+    schema = next(t for t in await server.list_tools() if t.name == "search").inputSchema
+    k = schema["properties"]["k"]
+
+    assert k["default"] == 20
+    # And the two directions out of it, in the schema rather than in a
+    # comment: the caller that should move it is the one that cannot
+    # read this repository.
+    assert "10" in k["description"] and "30" in k["description"]

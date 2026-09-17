@@ -1009,6 +1009,17 @@ A workspace already running `wsindex serve` offers the same tools over
 HTTP at `/mcp`, from the same tool code. Two transports, one
 implementation.
 
+**Before wiring this up, read what it was measured to do.** Nine runs
+against a headless agent say that an agent with the repositories on disk
+gets nothing from these tools — including three that only asked "where
+does this live", and one that took the shell away and left `Read` and
+`Glob`. It is not a retrieval failure: the tools were called every time
+and handed over the right file in 69% to 96% of runs, and the answers did
+not move, because an agent that can open files reaches them anyway. The
+caller these tools are for is the one that *cannot* — no filesystem, no
+git — which is why `k` defaults to 20 here and to 10 in the CLI. The
+numbers are in [docs/for-agents.md](docs/for-agents.md).
+
 **`search` takes a token budget, which is the one thing `k` cannot say.**
 Twenty hits on this corpus cost 4 201 tokens, and until now the caller
 found that out by spending them. `budget` trims the answer to fit and
