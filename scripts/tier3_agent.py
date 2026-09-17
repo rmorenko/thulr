@@ -85,7 +85,7 @@ the tools are listed, and the first call stops for a permission that
 nothing in a headless run can grant — which would have measured wsindex
 by never letting it answer."""
 
-ARMS = ("without", "local", "primed")
+ARMS: tuple[str, ...] = ("without", "local", "primed")
 """Three arms in one run, because the agent's spread between runs is
 wider than the effect being measured: the same twelve tasks gave the
 **unchanged** control 36 743 mean tokens one evening and 51 415 the
@@ -115,6 +115,25 @@ per hit, a location and the first line of what is there. Deliberately
 not the chunk text: an answer through MCP costs about 2 200 tokens and
 that cost is half of what the tool arm has been losing on. Pointers are
 what a reader needs to decide where to look."""
+
+RUINOUS = 130_000
+"""Tokens above which a run counts as a catastrophe rather than a cost.
+
+Three times the median of the twenty-four-task run that preceded this
+one (≈43 000), and fixed here **before** the stratum runs so it cannot be
+chosen from its own results. The two catastrophes seen so far sat at
+241 814 and 259 155, both with a miss, so the line is not close to either.
+
+The composite outcome matters because a mean cannot see a tail. Averaged
+over mixed tasks the tool costs more and finds the same; the question
+this constant exists to ask is different — how often does the control
+end up *wrong or ruined*, and how often do we."""
+
+
+def ruined(attempt: Attempt) -> bool:
+    """Wrong place, or right place at an unusable price."""
+    return not attempt.hit_line or attempt.tokens > RUINOUS
+
 
 REMOTE = {
     "model": "voyage-code-4",
@@ -562,7 +581,13 @@ def short(name: str) -> str:
     return "ws:" + name.split("__")[-1] if name.startswith("mcp__wsindex__") else name
 
 
-def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False) -> str:
+def protocol(
+    tasks: list[Task],
+    seconds: float,
+    *,
+    workspace_mode: bool = False,
+    arms: tuple[str, ...] = ARMS,
+) -> str:
     sha = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True
     ).stdout.strip()
@@ -578,15 +603,16 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
             "tokens": sum(r.tokens for r in runs) // n,
             "turns": sum(r.turns for r in runs) // n,
             "cost": sum(r.cost for r in runs),
+            "ruined": sum(ruined(r) for r in runs),
             "seconds": sum(r.seconds for r in runs) / n,
             "tools": next((r.inventory for r in runs if r.inventory), ()),
         }
 
-    counts = {arm: tally(arm) for arm in ARMS}
-    calls = {arm: calls_for(tasks, arm) for arm in ARMS}
+    counts = {arm: tally(arm) for arm in arms}
+    calls = {arm: calls_for(tasks, arm) for arm in arms}
 
     def row(label: str, key: str, fmt: str = "{}") -> str:
-        return f"| {label} | " + " | ".join(fmt.format(counts[a][key]) for a in ARMS) + " |"
+        return f"| {label} | " + " | ".join(fmt.format(counts[a][key]) for a in arms) + " |"
 
     lines = [
         "# Tier 3, with an agent — does it finish the work with less?",
@@ -614,22 +640,32 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
             " and this tool weakest. Named because the premise is several."
         ),
         "- Tools each arm actually had, as the agent reported at startup: "
-        + ", ".join(f"{a} **{len(counts[a]['tools'])}**" for a in ARMS)
+        + ", ".join(f"{a} **{len(counts[a]['tools'])}**" for a in arms)
         + ".",
         "",
         "## The gate, declared before the run",
         "",
-        "`primed` lands on the same lines more often than `without`,",
-        "counted in **paired** tasks rather than a mean, because one control",
-        "that thrashes carries a mean on its own. That is the whole question",
-        "this arm exists for: if handing the answer over changes nothing,",
-        "the information was never what the agent was short of, and no",
-        "amount of making it easier to ask for will help.",
+        "The arm with wsindex is **ruined** less often than the one without",
+        f"it, counted in paired tasks. Ruined is a miss or more than {RUINOUS:,}",
+        "tokens — a composite fixed before the run, at three times the median",
+        "of the twenty-four-task run that preceded it.",
+        "",
+        "A mean cannot answer this. Averaged over mixed tasks the tool costs",
+        "more and finds the same, which is what four runs have now said. The",
+        "claim left standing is narrower and about a tail: that where ripgrep",
+        "*drowns* — more than twenty files, median sixty-five here — the",
+        "control sometimes ends up wrong or ruined and the treatment does",
+        "not. Two such cases were seen in twenty-four random tasks, at",
+        "241 814 and 259 155 tokens, both missing. Random sampling cannot",
+        "measure an event that rare, so this run is not random: every task",
+        "in it is one ripgrep already drowned on, selected by the control's",
+        "own behaviour and graded against the pull request, with wsindex",
+        "touching neither end of that.",
         "",
         "## Results",
         "",
-        "| | " + " | ".join(ARMS) + " |",
-        "| --- | " + " | ".join("---:" for _ in ARMS) + " |",
+        "| | " + " | ".join(arms) + " |",
+        "| --- | " + " | ".join("---:" for _ in arms) + " |",
         row("same file", "file", "{} of " + str(len(tasks))),
         row("**same lines**", "line", "**{}**"),
         row("edited anything", "edited"),
@@ -637,6 +673,7 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
         row("mean turns", "turns"),
         row("mean seconds", "seconds", "{:.0f}"),
         row("total cost", "cost", "${:.2f}"),
+        row("**ruined**", "ruined", "**{}**"),
         "",
         "**What this does not say.** Whether the fix *works* is not measured:",
         "that needs the project's own tests, and thirty-three repositories",
@@ -652,13 +689,13 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
         "run of this harness found wsindex called once a task on top of an",
         "unchanged amount of grep, which costs and saves nothing.",
         "",
-        "| Tool | " + " | ".join(ARMS) + " |",
-        "| --- | " + " | ".join("---:" for _ in ARMS) + " |",
+        "| Tool | " + " | ".join(arms) + " |",
+        "| --- | " + " | ".join("---:" for _ in arms) + " |",
     ]
-    every = {name for arm in ARMS for name in calls[arm]}
-    for name in sorted(every, key=lambda n: -sum(calls[a].get(n, 0.0) for a in ARMS)):
+    every = {name for arm in arms for name in calls[arm]}
+    for name in sorted(every, key=lambda n: -sum(calls[a].get(n, 0.0) for a in arms)):
         lines.append(
-            f"| `{name}` | " + " | ".join(f"{calls[a].get(name, 0.0):.1f}" for a in ARMS) + " |"
+            f"| `{name}` | " + " | ".join(f"{calls[a].get(name, 0.0):.1f}" for a in arms) + " |"
         )
     lines += [
         "",
@@ -666,12 +703,12 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
         "",
         "Transcripts are kept beside the corpus cache, not in this repository.",
         "",
-        "| Task | " + " | ".join(f"{a}: file/line | tokens" for a in ARMS) + " | issue |",
-        "| --- | " + " | ".join("--- | ---:" for _ in ARMS) + " | --- |",
+        "| Task | " + " | ".join(f"{a}: file/line | tokens" for a in arms) + " | issue |",
+        "| --- | " + " | ".join("--- | ---:" for _ in arms) + " | --- |",
     ]
     for t in tasks:
         cells = []
-        for arm in ARMS:
+        for arm in arms:
             a = t.arm(arm)
             cells.append(
                 f"{'yes' if a.hit_file else 'no'}/{'yes' if a.hit_line else 'no'} | {a.tokens}"
@@ -681,13 +718,13 @@ def protocol(tasks: list[Task], seconds: float, *, workspace_mode: bool = False)
         "",
         "### Tool use, per task",
         "",
-        "| Task | " + " | ".join(ARMS) + " |",
-        "| --- | " + " | ".join("---" for _ in ARMS) + " |",
+        "| Task | " + " | ".join(arms) + " |",
+        "| --- | " + " | ".join("---" for _ in arms) + " |",
     ]
     for t in tasks:
         lines.append(
             f"| `{t.repo}#{t.number}` | "
-            + " | ".join(summarise(t.arm(a).calls) for a in ARMS)
+            + " | ".join(summarise(t.arm(a).calls) for a in arms)
             + " |"
         )
     return "\n".join(lines) + "\n"
@@ -713,6 +750,18 @@ def main() -> int:
         help="re-ask named tasks instead of drawing new ones",
     )
     parser.add_argument("--suffix", default="", help="tag the protocol filename")
+    parser.add_argument(
+        "--from",
+        dest="listing",
+        type=Path,
+        help="a file of `repo#number` lines: the stratum to run, one per line",
+    )
+    parser.add_argument(
+        "--arm",
+        action="append",
+        choices=list(ARMS),
+        help="run only these arms (default: all of them)",
+    )
     parser.add_argument(
         "--workspace",
         action="store_true",
@@ -741,14 +790,22 @@ def main() -> int:
 
     started = time.monotonic()
     print("choosing tasks", flush=True)
-    tasks = pick(orgs, args.tasks, set(args.only or ()), args.seed)
-    if args.only and not tasks:
-        print(f"no task matched {sorted(set(args.only))}", file=sys.stderr)
+    arms = tuple(a for a in ARMS if a in args.arm) if args.arm else ARMS
+    only = set(args.only or ())
+    if args.listing:
+        only |= {
+            line.strip()
+            for line in args.listing.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+    tasks = pick(orgs, args.tasks, only, args.seed)
+    if only and not tasks:
+        print(f"no task matched {sorted(only)[:5]}", file=sys.stderr)
         return 2
     for n, task in enumerate(tasks, start=1):
         print(f"[{n}/{len(tasks)}] {task.repo}#{task.number}", flush=True)
         siblings = [r["id"] for r in corpus[task.org]["repos"]] if args.workspace else None
-        for arm in ARMS:
+        for arm in arms:
             where = (
                 workspace(task.org, siblings, task.repo, task.sha, arm)
                 if siblings
@@ -784,7 +841,7 @@ def main() -> int:
     PROTOCOLS.mkdir(parents=True, exist_ok=True)
     out = PROTOCOLS / f"tier3-agent-{time.strftime('%Y-%m-%d')}{args.suffix}.md"
     out.write_text(
-        protocol(tasks, time.monotonic() - started, workspace_mode=args.workspace),
+        protocol(tasks, time.monotonic() - started, workspace_mode=args.workspace, arms=arms),
         encoding="utf-8",
     )
     print(f"\nprotocol written to {out}")

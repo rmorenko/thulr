@@ -80,11 +80,39 @@ the top *three* it is 62 against ripgrep's 71, which is noise: the win is
 at depth, not at the very top, and an agent that reads one hit and stops
 will not see it.
 
-Measured separately and worth knowing before you wire anything up: on 24
-real issues, an agent given these tools finished on the same lines as
-often as one without them and spent **more** tokens doing it — 19 of 24
-tasks more expensive, p = 0.0066 locally. The ranking above is a fact
-about search; it did not become a saving for an agent.
+**Read this before you wire anything up: six measurements say an agent
+does not get faster or more accurate from these tools.** Not "we could
+not show it" — six designs, each aimed at the last one's excuse:
+
+| what was tried                                        |                                  result |
+| ----------------------------------------------------- | --------------------------------------: |
+| 24 real issues, local and hosted arms                 | same lines, 19 of 24 dearer, p = 0.0066 |
+| the whole organisation indexed, repo not named        |                19 / 19 / 18 lines of 24 |
+| the answer handed over in the task, no MCP at all     |               8 of 24 cheaper, p = 0.15 |
+| the largest workspace in the corpus                   |                           no difference |
+| 75 tasks **selected because ripgrep drowned on them** |          ruined 16 against 13, p = 0.65 |
+| 15 renames across a spelling boundary, with a skill   |                  8, 8 and 9 sites of 27 |
+
+The last two were built to win and did not. The fifth selected every
+task by the control's own failure — more than twenty files returned,
+median sixty-five — and found no difference in how often a run ends
+wrong or ruinously expensive. The sixth took the one question where
+`grep` scores not *few* but **zero** and still found nothing, for a
+reason worth knowing: what `refs` bridges is a mechanical transform —
+`max_retries` to `MaxRetries`, `thin-vec` to `thin_vec` — and a language
+model performs that transform for free. It does not bridge
+`oauth_client_id` to `clientId`, and neither does anything else here.
+
+The third is the one that says *why*. Handing the answer over in the
+task, at 125 tokens instead of 2 200, changed nothing — so the
+information was never what the agent was short of. That closes the whole
+family: a better transport, a skill, delegation, a model inside the tool.
+They all deliver information faster, and information was not the
+bottleneck.
+
+The ranking above is a fact about search. It does not become a saving
+for an agent, and the tools are here because an editor or an agent client
+may still want to ask — not because we can show it pays.
 
 **Two answers here do beat `grep`, and both are now measured.** `why` —
 a definition to the commits that wrote it — named a commit that really
