@@ -306,9 +306,44 @@ never leaves the machine: only the query and forty candidate chunks do.
 The cost is per search rather than per chunk, and the crossover on a
 16 000-chunk workspace is about 135 searches.
 
-Neither is the default, and neither ever will be — but both are now
-reachable from a config file, because a promise that turns out to be
-achievable is a different fact from one that does not.
+**And with that configuration the gate is passed.** The plan of
+2026-09-11 named one line in advance: `hit@10 >= 0.5` on the descriptive
+class — the questions a person writes about behaviour, mechanically
+checked so that no word of four letters or more from the question appears
+anywhere in the answer file. Asked again on all 84 authored questions of
+the seven workspaces this repository keeps:
+
+| Class           | Questions | ships (MiniLM) | `voyage-code-4` + `rerank-2.5` | ripgrep |
+| --------------- | --------: | -------------: | -----------------------------: | ------: |
+| literal         |        28 |             23 |                         **28** |      21 |
+| **descriptive** |        42 |          **1** |                         **21** |   **0** |
+| cross-repo      |        14 |              6 |                         **12** |       6 |
+| all             |        84 |             30 |                         **61** |      27 |
+
+Top ten, paired: the hosted configuration answers 32 questions the local
+one misses and misses 1 it answers, p < 0.000001. On the descriptive
+class that is **hit@10 = 0.51** of 41 reachable — a pass by a single
+question, with no margin, and the first time this project has cleared a
+line it set before measuring.
+
+Read the descriptive row for what it settles and what it costs. **The
+need is not our claim: `ripgrep` answers zero of those 42.** A tester
+wrote them as what a developer joining the codebase would ask, before
+wsindex was allowed to run. Half of what a person wants to know is
+outside what grep can reach at all, and that is the case for this tool
+existing.
+
+The cost is the rest of the row. **1 of 42 on the model that ships.** The
+free, offline, nothing-leaves-the-machine mode does not do the thing that
+justifies the tool; it answers the questions grep already answers. That
+is not a shortfall to be closed by tuning — the same chunks and the same
+pipeline give 1 and 21 — and anyone choosing between the two configurations
+should choose on this number rather than on the harvested one, where the
+gap is much narrower.
+
+Neither remote configuration is the default, and neither ever will be —
+but both are now reachable from a config file, because a promise that
+turns out to be achievable is a different fact from one that does not.
 
 ```toml
 # The index leaves the machine. Everything below is off unless typed.

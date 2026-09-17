@@ -116,6 +116,37 @@ Read the descriptive row twice. **ripgrep found none of them** — so the
 questions are real, and the need for something other than grep is real.
 And wsindex, by default, found five.
 
+### Asked again, a pipeline later
+
+That table is the state of things on 2026-09-11, with `all-MiniLM-L6-v2`
+and the defaults of the day. The retrieval width, the lexical arm of the
+fusion, the reranker and a hosted embedder all arrived after it, so the
+same questions were put again — the 84 authored questions of the seven
+workspaces this repository keeps, top ten, nothing re-written:
+
+| Class           | Questions | ships (MiniLM) | `voyage-code-4` + `rerank-2.5` | ripgrep |
+| --------------- | --------: | -------------: | -----------------------------: | ------: |
+| literal         |        28 |             23 |                         **28** |      21 |
+| **descriptive** |        42 |          **1** |                         **21** |   **0** |
+| cross-repo      |        14 |              6 |                         **12** |       6 |
+| all             |        84 |             30 |                         **61** |      27 |
+
+Paired, the hosted configuration answers 32 questions the local one
+misses and misses one it answers, p < 0.000001. On the descriptive class
+it reaches **hit@10 = 0.51** of 41 reachable, which is the line the plan
+of 2026-09-11 set in advance — passed by one question, with no margin.
+
+Two things changed and one did not. What changed: the crossing from a
+developer's English to the code's vocabulary, diagnosed below as a
+property of the model, is a property of the model — swapping it moved the
+descriptive class from 1 to 21 with nothing else touched. And the
+cross-repo row reversed, from level with `ripgrep` to 12 against 6.
+
+What did not change: **the model that ships still answers 1 of 42.** The
+configuration that meets the need is the one that sends every chunk to a
+hosted embedder. The local mode is not a slightly weaker version of it on
+this class; it is a different capability.
+
 ### The index is not the problem
 
 Handed a line taken verbatim out of the answer file, the index returns
