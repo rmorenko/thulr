@@ -122,6 +122,19 @@ def retrieval_text(chunk: Chunk) -> str:
     the model, and writing the economy in would have quietly capped the
     only configuration that clears 130.
 
+    **A licence header costs nothing, which is worth knowing because it
+    looks like it should.** CloudBeaver opens 2 931 of its 3 509
+    TypeScript files with the same seven lines, and in
+    `SessionActivityService.ts` those seven share a chunk with the
+    constant that answers a question about it — the only prose in a file
+    whose vector depends on prose being a corpus-wide constant. Stripping
+    the opening comment block from what the embedder reads, on the 84
+    authored questions: 61 answers before and 61 after, and **not one
+    question changed in either direction**. Identical text in four files
+    of five moves every vector the same way, so it moves none of them
+    relative to the others. Detecting boilerplate by frequency was
+    designed and then not built, on this.
+
     It also says where the remote arm's advantage comes from. Hosted
     scores 130 against local's 98, and hosted *on prose alone* scores
     105 — so about 25 of those 32 points are "it can read code" rather
