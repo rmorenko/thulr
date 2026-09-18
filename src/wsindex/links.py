@@ -145,6 +145,21 @@ def normalised(name: str) -> str:
     this named" that is noise a reader can see through, which is why
     `by_name` reports the exact spelling first and labels the rest.
 
+    **Where it stops, and why it stays stopped.** This joins whole names
+    across separators and case; it does not join `oauth_client_id` to
+    `clientId`. Splitting a name into parts and folding the sub-runs is
+    the obvious cure and was sized before being built: of 200 compound
+    configuration keys, 26 had a sub-run spelled somewhere in the
+    workspace, and reading all 26 there is no prize in them. The ones
+    that look right — `event-listener` against `event_listener`,
+    `pin-project` against `pin_project` — this function already folds.
+    What is left is `mdast-util-to-string` reaching `toString`,
+    `why-is-node-running` reaching `isNode`, and two unrelated keys,
+    `package-manager-cache` and `package-manager-detector`, both landing
+    on `packageManager`. A rule that keeps `client_id` out of
+    `oauth_client_id` cannot tell itself apart from one that keeps
+    `to_string` out of `mdast-util-to-string`.
+
     Args:
         name: A name as some file spells it.
 
