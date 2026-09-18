@@ -468,6 +468,36 @@ def vector_key(org: str, repos: list[Repo], config: Config) -> str:
     return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
 
 
+INDEX_SLOTS = 3
+"""How many configurations of one workspace may sit on disk.
+
+Three because the arms that actually alternate are the shipped model, the
+hosted embedder and the hosted pair — and because a hosted DBeaver index
+is 349 MB, so "keep everything" is a plan to fill somebody's laptop while
+they are not looking."""
+
+
+def _evict(home: Path, *, keep: Path) -> None:
+    """Keep the newest `INDEX_SLOTS` indexes of one workspace.
+
+    Oldest by modification time, and never the one about to be used —
+    which can be the oldest, since reusing an index does not rewrite it.
+    """
+    if not home.is_dir():
+        return
+
+    def used(slot: Path) -> float:
+        # The key file, not the directory: touching a file that already
+        # exists leaves the parent's mtime alone, so sorting by the
+        # directory would order by build time and undo the touch.
+        stamp = slot / "key"
+        return (stamp if stamp.is_file() else slot).stat().st_mtime
+
+    slots = sorted((p for p in home.iterdir() if p.is_dir() and p != keep), key=used)
+    for stale in slots[: max(0, len(slots) - (INDEX_SLOTS - 1))]:
+        shutil.rmtree(stale, ignore_errors=True)
+
+
 def sealed(pipeline: Pipeline, report: Any) -> tuple[int, int]:
     """Declare this index complete, and say how big the corpus is.
 
@@ -563,13 +593,26 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
         }
     for repo in repos:
         config.add_repo(Repository(id=repo["id"], path=str(root / repo["id"])))
-    state = CACHE / ".index" / org
+    # One directory per configuration, not per workspace. A single
+    # directory looked right until the first day of real use: the local
+    # and hosted arms of the same question alternate, and with one slot
+    # each run evicts the other's index — fifty minutes and an embedding
+    # bill to get back what was just deleted. Keyed by configuration they
+    # coexist, and `_evict` bounds what that costs on disk.
     key = vector_key(org, repos, config)
+    state = CACHE / ".index" / org / key[:12]
+    _evict(CACHE / ".index" / org, keep=state)
     kept = (state / "key").is_file() and (state / "key").read_text(encoding="utf-8") == key
     if os.environ.get("WSINDEX_REINDEX") == "1" or not kept:
         shutil.rmtree(state, ignore_errors=True)
-    elif os.environ.get("WSINDEX_QUIET") != "1":
-        print(f"    reusing the index of {org}", flush=True)
+    else:
+        # Touched on use, so eviction is by *last used* rather than by
+        # when it happened to be built — reusing an index writes nothing,
+        # and without this the arm run most often would be the first one
+        # thrown away.
+        (state / "key").touch()
+        if os.environ.get("WSINDEX_QUIET") != "1":
+            print(f"    reusing the index of {org}", flush=True)
     state.mkdir(parents=True, exist_ok=True)
     (state / "key.pending").write_text(key, encoding="utf-8")
     config._data["store"]["uri"] = str(state / "data.lance")
