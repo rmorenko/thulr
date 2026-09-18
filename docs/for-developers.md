@@ -147,11 +147,11 @@ holds it for **145**. Worth the habit, and worth knowing what it costs —
 an answer at `-k 10` is about 2 200 tokens to read, and five times that
 at `-k 50`.
 
-The depth is doing most of the work there, not the filter: at depth ten,
-restricting to code and docs scores 77 against the unrestricted 79. But
-the filter is not nothing either — commit messages take 39 of the 252
-top-three slots on the hosted configuration, and two descriptive answers
-sit at rank 3 and 8 once they are filtered out.
+The depth is doing all of the work there, and the filter none of it.
+Commit messages really do crowd the list — 93 of the 840 top-ten slots on
+the hosted configuration are history rather than code — but dropping them
+changes nothing: 61 answers of 84 with them and 61 without, two questions
+gained and two lost. Use `-k 50` for the depth, not for the filter.
 
 **If your language is not in the table, you get an empty index and no
 warning.** Thirty-three languages and formats are claimed now, including
