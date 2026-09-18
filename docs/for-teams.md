@@ -7,53 +7,62 @@ works in and answers questions about them with exact file and line
 numbers. It is one binary, no account, no per-seat cost, and by default
 it runs entirely on the developer's own machine.
 
-**What a developer stops doing:** on 204 tasks taken from the indexed
-projects' own issue trackers, reaching the answer took a median of
-1 263 tokens of reading against grep's 13 474 — about a tenth — and less
-reading in 85 of the 99 both finished. Counted as a fixed reading policy
-rather than as a person, so it is the size of the pile the tool hands
-over rather than anybody's cleverness.
+## The decision, stated before the evidence
 
-**That default is a posture, and what it costs is measured.** On 204
-questions taken from the issue trackers of the projects being indexed,
-the fully local default finds the right file in the top ten 98 times and
-`ripgrep` finds it 71 — 48 questions only wsindex answers against 21 only
-ripgrep answers, p = 0.0016. A hosted reranker, which sends a query and
-about forty candidate chunks per search and never the repository, takes
-it to 109. A hosted embedder as well, which does send every chunk once,
-takes it to 132. Four postures, three of them defensible, and the choice
-is yours rather than this document's.
+**There is a class of question about unfamiliar code that `grep` answers
+zero of, and it is roughly half of what a developer joining a codebase
+asks.** 42 such questions were written by a tester before wsindex was
+allowed to run, with every word of four letters or more mechanically
+checked absent from the answer file. `ripgrep` found none. wsindex finds
+21 of them — **with a hosted embedder**. With the model that ships, 1.
 
-Worth saying at the same volume: in the top *three* the local default
-manages 62 against ripgrep's 71, which is noise either way. A developer
-who already knows the identifier is better served by grep, and this
-changes nothing about that.
+So the two things a team wants from this tool are currently in tension,
+and you should know that on this page rather than at a security review:
 
-If the answer has to be "nothing leaves", the default is the row to
-standardise on and it is already ahead of the control. If you have
-hardware and a closed network, the same argument points at running a
-larger model on your own infrastructure — which this supports and which
-has **not** been measured here, so treat it as a direction rather than a
-number.
+- *"Nothing leaves our machines"* — available, and already ahead of the
+  control on the questions grep can also answer.
+- *"Ask the codebase a question in words"* — available, and it sends
+  every chunk to a hosted embedder once.
 
-Everything below is measured on twenty real codebases that are not its
-own — 105 repositories from twenty GitHub organizations, chosen to
-include the cases where it would struggle. The measurements, and how they
-were taken, are in [field-trial.md](field-trial.md).
+They are not the same configuration today. Choosing is the adoption
+decision; everything below is what each choice buys.
 
 ## What a team gets
 
-**Search that keeps working as the codebase grows.** On the largest
-codebase tested — DBeaver, 11 786 files — wsindex put the right file in
-the top three for every identifier question asked. `ripgrep`, the tool
-people actually use today, found one in four and returned over twenty
-files for two more. The value is not that it beats grep on a small repo;
-it is that it keeps working when grep stops being usable.
+**Half the joining developer's questions, without spending a senior's
+attention.** That is not a metaphor for the 42 questions above — it is
+literally how they were written. Today the cost of those questions is
+weeks of someone's time, paid in interruptions.
+
+**Change safety across repositories.** A setting written `max_retries`
+in one service's yaml is read as `MaxRetries` in another's Go, and no
+`grep` flag crosses that gap — measured, 64 of 76 against a control of
+**zero**. `refs` reports `unresolved` when a key is read somewhere and
+declared nowhere, which is a drift signal rather than a search result.
+The failure it prevents is silent: a rename that looks complete and is
+not.
+
+**Architectural memory that outlives the authors.** `why` walks a
+definition back to the commits that wrote it and their messages — where
+the reasoning behind a design actually survives. It named a commit that
+really touched those lines 199 times of 202, against `git log -S` at 174.
+
+Neither of those two uses a model at all. They are exact walks over a
+link graph, identical on every configuration, and no vendor can improve
+or withdraw them.
 
 **One question across every repository at once.** Teams that split code,
-docs, infrastructure and SDKs across repositories currently rely on
-somebody knowing which repo holds what. This removes that dependency, and
-it is the reason the tool exists.
+docs, infrastructure and SDKs across repositories rely on somebody
+knowing which repo holds what. On 14 questions whose answer sits in a
+different repository from the one you would open first, wsindex found 12
+and `ripgrep` 6.
+
+**Search that keeps working as the codebase grows.** On the largest
+codebase tested — DBeaver, 11 786 files — wsindex put the right file in
+the top three for every identifier question asked. `ripgrep` found one in
+four and returned over twenty files for two more. The value is not that
+it beats grep on a small repo; it is that it keeps working when grep
+stops being usable.
 
 **A duplication report that groups by cause.** `wsindex dupes` finds the
 same code in two places and collapses the result by the directories
@@ -66,10 +75,27 @@ made of and which files keep changing together across package
 boundaries — the pairs where two modules are coupled but not about the
 same subject are the ones worth a conversation.
 
-**Nothing leaves the machine.** This is a design principle, not a
-setting: no telemetry, no cloud call, no code sent to a model provider.
-For a team that cannot send source to a third party, this is the whole
-reason to look at it.
+## The posture is a choice you can defend
+
+Four configurations, and a security officer can be given an exact answer
+about each rather than a reassurance:
+
+| Configuration                 | What leaves the machine  | Finds it (of 204) |
+| ----------------------------- | ------------------------ | ----------------: |
+| the default                   | nothing                  |                98 |
+| hosted reranker               | the query and ~40 chunks |               109 |
+| hosted embedder as well       | every chunk, once        |               132 |
+| `ripgrep`, what you use today | —                        |                71 |
+
+The middle row is the one most teams miss: the index stays where it is
+and only the query and about forty candidate chunks per search go
+anywhere — never the repository. See
+[for-security.md](for-security.md) for what opens a socket and when.
+
+If you have hardware and a closed network, the same argument points at
+running a larger model on your own infrastructure. That is supported and
+has **not** been measured here, so treat it as a direction rather than a
+number.
 
 ## What it costs
 
@@ -86,54 +112,60 @@ decision; there is nothing central to provision.
 
 ## What it does not do
 
-**It does not yet answer questions asked in plain English.** The trial
-put 102 questions phrased the way a person thinks, deliberately avoiding
-the words used in the code. wsindex placed the right answer in its top
-three for one of them.
+**It does not help a coding agent.** Nine measurements, including three
+that asked only where code lives and one that removed the shell from the
+agent entirely. If somebody proposes this as an AI-productivity purchase,
+the numbers are in [for-agents.md](for-agents.md) and they say no.
 
-This is worth reading carefully in both directions. `ripgrep` found
-**none** of them, so the gap is real and your developers are living with
-it today, and anyone selling you "ask your codebase a question" as a
-finished feature of *this* tool would be describing the default wrongly.
+**It does not beat grep when the developer knows the identifier.** In the
+top *three* the local default manages 62 against ripgrep's 71, which is
+noise either way. This changes nothing about that, and a team that hears
+otherwise from us should distrust the rest.
 
-But the ceiling is the model, and that is now measured rather than
-assumed: the same pipeline with a frontier code embedder and reranker
-answers 12 of 23 in the top three. The default is a small local model
-chosen so that nothing leaves the machine. If your team does not need
-that guarantee, the gap is a configuration away rather than a rewrite —
-and if it does, the guarantee is why you are reading this page.
+**Plain English does not work on the default model.** 1 of 42, against 21
+with a hosted embedder and reranker. The limit is the model, measured
+four ways: no available local model beats the one that ships, and the two
+trained on code did worse. This is a configuration away, not a rewrite —
+but it is not what `wsindex init` gives you.
 
 **It is not finished software, though it is less unfinished than the
-trial found it.** Three of the twenty workspaces could not be indexed at
-all — two crashed on a repository with more than ~17 900 files, one on a
-twenty-year-old commit message containing a non-UTF-8 character — and
-three more indexed almost nothing while reporting success. All of that
-is fixed and tested. What is not fixed is the class of question below.
+field trial found it.** Three of the twenty trial workspaces could not be
+indexed at all — two crashed on a repository with more than ~17 900
+files, one on a twenty-year-old commit message containing a non-UTF-8
+character — and three more indexed almost nothing while reporting
+success. All of that is fixed and tested.
 
-**It does not support every language.** Sixteen languages get a real
-syntax tree. Scala, Swift and Objective-C get nothing at all
-unless somebody adds a configuration entry per repository.
+**It does not support every language, though the list has grown.**
+Thirty-three languages and formats are claimed, including the three that
+used to be the reason to walk away — Scala, Swift and Objective-C — plus
+Elixir, SQL, HCL/Terraform, shell and the config formats. Anything not
+claimed is skipped rather than indexed as text, and `wsindex explain`
+on any source file says which it is.
 
 ## Where it fits, and where it does not
 
-**A good fit:** several repositories, at least one of them large, a
-polyglot mix drawn from the supported languages, and a hard requirement
-that source code stays on the machine. The bigger and more scattered the
-codebase, the more it is worth.
+**A good fit:** several repositories, at least one of them large, people
+who regularly arrive in code they did not write, and a decision already
+made about whether source may be sent to a model provider.
 
-**A poor fit today:** a single small repository — grep is enough; a
-workspace in an unsupported language — it will index your READMEs and
-nothing else; a team that wants natural-language questions answered out
-of the box — that part needs a model the default is not.
+**A poor fit today:** a single small repository — grep is enough; a team
+that wants natural-language questions answered *and* nothing leaving the
+machine — those are not the same configuration; a team looking for agent
+productivity — measured, and it is not there.
 
 ## How to decide
 
 Pick your largest repository and your most scattered workspace. Install
-it, index, and give two developers a week with `-k 50 --kind code` as
-their habit. Ask them one question afterwards: *when you needed to find
-where something lived, did you reach for this or for grep?*
+it, index, and give two developers a week. Ask them one question
+afterwards: *when you needed to find where something lived, did you reach
+for this or for grep?*
 
 That is a cheaper experiment than any argument about it, and it is the
-one this trial could not run — the twenty codebases were strangers'. On
-your own code, with your own people, the answer may differ, and it is the
-only answer that decides anything.
+one the field trial could not run — the twenty codebases were strangers'.
+On your own code, with your own people, the answer may differ, and it is
+the only answer that decides anything.
+
+Everything above is measured on twenty real codebases that are not its
+own — 105 repositories from twenty GitHub organizations, chosen to
+include the cases where it would struggle. The measurements, and how they
+were taken, are in [field-trial.md](field-trial.md).
