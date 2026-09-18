@@ -96,7 +96,15 @@ local index — top-three / top-ten of the reachable answers:
 Cutting at `k * 4` loses real answers: the reranker was promoting
 candidates the bi-encoder had ranked below fortieth globally. Going wider
 than this buys nothing and costs 58% more — more candidates is more
-chances for the wrong one to score well."""
+chances for the wrong one to score well.
+
+Asked again on 2026-09-18 over a hosted embedder rather than a local
+one, because that verdict was about a number and might have been about
+the vectors under it. It was about the number: 120 / 240 / 320 candidates
+answer 61, 62 and 62 of the 84 authored questions, one gained and none
+lost, at 2.7 times the reranking. What the window holds is the limit and
+widening it is not the way past: of 42 descriptive answers, 24 are inside
+it and the reranker turns those into 21."""
 
 COMMIT_SHARE = 0.2
 """How much of a result list history may take before it is crowding.
