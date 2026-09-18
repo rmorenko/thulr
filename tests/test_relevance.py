@@ -16,7 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from relevance import Graded, Workspace, compare, counted
+import pytest
+from relevance import Graded, Workspace, compare, counted, vector_key
 
 BASELINE = {
     "model": "sentence-transformers/all-MiniLM-L6-v2",
@@ -114,3 +115,63 @@ def test_an_unreachable_question_still_counts_as_not_found() -> None:
     space = Workspace(org="w", graded=[graded("descriptive", None, reachable=False)])
 
     assert counted([space])["descriptive"] == 0
+
+
+def _key(monkeypatch: pytest.MonkeyPatch) -> str:
+    from wsindex.config import Config
+
+    Config.reset()
+    return vector_key("org", [{"id": "r", "sha": "abc"}], Config.default("keytest"))
+
+
+def test_the_index_key_notices_a_change_to_chunking(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The cache's whole safety argument, in one assertion.
+
+    Keeping an index between runs is only defensible while the key sees
+    everything that decides what a stored vector is. It fails silently
+    when it does not: the numbers still come out, they are just about the
+    previous chunker.
+    """
+    import wsindex.ingest.chunker as chunker
+
+    before = _key(monkeypatch)
+    source = Path(chunker.__file__)
+    original = source.read_bytes()
+    try:
+        source.write_bytes(original + b"\n# changed\n")
+        assert _key(monkeypatch) != before
+    finally:
+        source.write_bytes(original)
+    assert _key(monkeypatch) == before
+
+
+def test_the_index_key_ignores_a_change_to_ranking(monkeypatch: pytest.MonkeyPatch) -> None:
+    """And the other half, which is why the cache is worth having.
+
+    Ranking is the thing this instrument is used to measure. If touching
+    `pipeline.py` re-embedded the corpus, a hosted run would cost fifty
+    minutes and real money per idea, and the ideas would go unmeasured.
+    """
+    import wsindex.pipeline as pipeline
+
+    before = _key(monkeypatch)
+    source = Path(pipeline.__file__)
+    original = source.read_bytes()
+    try:
+        source.write_bytes(original + b"\n# changed\n")
+        assert _key(monkeypatch) == before
+    finally:
+        source.write_bytes(original)
+
+
+def test_a_probe_can_declare_what_the_source_cannot_show(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`probes/ast_vs_text.py` takes the parser away at runtime, so no
+    file changes and nothing above would notice. The tag is how such a
+    probe keeps its two arms from sharing one index."""
+    before = _key(monkeypatch)
+    monkeypatch.setenv("WSINDEX_INDEX_TAG", "windows")
+    assert _key(monkeypatch) != before

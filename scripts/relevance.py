@@ -55,6 +55,7 @@ Environment:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -67,6 +68,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import wsindex
 from wsindex.cli.composition import _reranker, build_store
 from wsindex.config import Config, Repository
 from wsindex.model import Hit, Kind, SearchFilter
@@ -416,12 +418,104 @@ def line_truth(org: str) -> dict[str, dict[str, list[int]]]:
     return loaded
 
 
+VECTOR_SOURCES = ("ingest", "embed", "store", "model.py")
+"""Which parts of the package decide what a stored vector *is*.
+
+Named rather than "everything under `src`", and the distinction is the
+whole point of keeping an index between runs: the ranking work this
+instrument exists to measure lives in `pipeline.py` and `rank/`, and
+re-embedding a corpus because a fusion constant moved would put the cost
+straight back where it was. Anything deciding what text is embedded, how
+it is cut or how it is stored is listed; anything deciding only what
+comes back first is not.
+
+`store` is in the list because `retrieval_text` lives there, and that
+function chooses the text a chunk is embedded as. Editing the query side
+of the same module therefore rebuilds too — a spurious rebuild, and much
+cheaper than the alternative mistake."""
+
+
+def vector_key(org: str, repos: list[Repo], config: Config) -> str:
+    """Everything a stored vector depends on, as one string.
+
+    The index survives a run only while this is unchanged, so it has to
+    be complete: a stale index graded against a new chunker is exactly
+    the failure the unconditional wipe prevented, and it fails *silently*
+    — the numbers come out plausible and wrong.
+
+    `WSINDEX_INDEX_TAG` is the escape hatch for what a hash of the source
+    cannot see. `probes/ast_vs_text.py` takes the parser away at runtime
+    by assigning to `REGISTRY.parser`; no file changes, so nothing here
+    would notice, and the AST arm's index would be served to the windows
+    arm. A probe that alters behaviour from outside has to say so.
+    """
+    package = Path(wsindex.__file__).parent
+    digests = []
+    for name in VECTOR_SOURCES:
+        target = package / name
+        for path in sorted(target.rglob("*.py")) if target.is_dir() else [target]:
+            digests.append(
+                f"{path.relative_to(package)}:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+            )
+    material = {
+        "org": org,
+        "repos": {repo["id"]: repo["sha"] for repo in repos},
+        "embeddings": dict(config._data.get("embeddings", {})),
+        "hybrid": config._data.get("store", {}).get("hybrid"),
+        "tag": os.environ.get("WSINDEX_INDEX_TAG", ""),
+        "sources": digests,
+    }
+    return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
+
+
+def sealed(pipeline: Pipeline, report: Any) -> tuple[int, int]:
+    """Declare this index complete, and say how big the corpus is.
+
+    Called after `index()` returns and never before: a run killed halfway
+    leaves a partial store, and a partial store that claims to be current
+    is worse than no cache at all. `build` writes the key aside; this
+    promotes it.
+
+    The size is returned rather than taken from the report because an
+    incremental run over an unchanged workspace writes nothing and
+    reports nothing — which is the point of it — and a table that then
+    prints `0 files` would be the cache quietly corrupting the report it
+    was built to make affordable. Real counts are kept beside the key and
+    read back.
+
+    A probe that does not call this simply re-indexes every time, which
+    is what every caller did before the cache existed.
+
+    Returns:
+        Files and chunks in the corpus, whether or not this run wrote any.
+    """
+    counted = pipeline.state_dir / "counts.json"
+    if report.chunks:
+        counted.write_text(
+            json.dumps({"files": report.files, "chunks": report.chunks}), encoding="utf-8"
+        )
+    pending = pipeline.state_dir / "key.pending"
+    if pending.is_file():
+        pending.replace(pipeline.state_dir / "key")
+    if counted.is_file():
+        saved = json.loads(counted.read_text(encoding="utf-8"))
+        return int(saved["files"]), int(saved["chunks"])
+    return report.files, report.chunks
+
+
 def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
-    """A pipeline over one freshly indexed workspace.
+    """A pipeline over one workspace, indexed or reused.
 
     Split from `grade` so a probe can reuse the wiring without copying
     it: a probe that builds its own slightly different pipeline is a
     probe measuring something slightly different.
+
+    The index is kept between runs when `vector_key` is unchanged, and
+    wiped otherwise. This is not an optimisation of convenience: a hosted
+    embedder takes about fifty minutes and real money to embed this
+    corpus once, and an instrument that expensive to run is an instrument
+    that gets run less often than the question deserves. `WSINDEX_REINDEX=1`
+    forces the wipe.
     """
     # `Config.default` replaces the process-wide instance, which is what a
     # script wants: it must never pick up a real workspace config.
@@ -470,8 +564,14 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     for repo in repos:
         config.add_repo(Repository(id=repo["id"], path=str(root / repo["id"])))
     state = CACHE / ".index" / org
-    shutil.rmtree(state, ignore_errors=True)
+    key = vector_key(org, repos, config)
+    kept = (state / "key").is_file() and (state / "key").read_text(encoding="utf-8") == key
+    if os.environ.get("WSINDEX_REINDEX") == "1" or not kept:
+        shutil.rmtree(state, ignore_errors=True)
+    elif os.environ.get("WSINDEX_QUIET") != "1":
+        print(f"    reusing the index of {org}", flush=True)
     state.mkdir(parents=True, exist_ok=True)
+    (state / "key.pending").write_text(key, encoding="utf-8")
     config._data["store"]["uri"] = str(state / "data.lance")
     # Tri-state on purpose: unset means "whatever ships", which is what a
     # report about the default has to measure. `1` and `0` are for the
@@ -515,10 +615,11 @@ def grade(org: str, repos: list[Repo], *, harvested: bool = False) -> Workspace:
     pipeline = build(org, repos, root)
     started = time.perf_counter()
     report = pipeline.index()
+    files, chunks = sealed(pipeline, report)
     space = Workspace(
         org=org,
-        files=report.files,
-        chunks=report.chunks,
+        files=files,
+        chunks=chunks,
         seconds=round(time.perf_counter() - started, 1),
     )
 
@@ -575,10 +676,11 @@ def _grade_harvested(
     wanted_lines = line_truth(org)
     started = time.perf_counter()
     report = pipeline.index()
+    files, chunks = sealed(pipeline, report)
     space = Workspace(
         org=org,
-        files=report.files,
-        chunks=report.chunks,
+        files=files,
+        chunks=chunks,
         seconds=round(time.perf_counter() - started, 1),
     )
     code_and_doc = SearchFilter(kind=(Kind.CODE, Kind.DOC))
