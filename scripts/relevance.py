@@ -477,11 +477,23 @@ is 349 MB, so "keep everything" is a plan to fill somebody's laptop while
 they are not looking."""
 
 
+_IN_USE: set[Path] = set()
+"""Indexes this process has built and may still be reading.
+
+Eviction deleted one out from under a live pipeline the first time two
+arms were compared in one run: the second `build` reclaimed a slot, took
+the first arm's directory, and both arms then answered identically
+because one of them was reading a hole. Nothing raised. A probe that
+compares two indexes must be able to hold both, however many slots the
+disk budget allows."""
+
+
 def _evict(home: Path, *, keep: Path) -> None:
     """Keep the newest `INDEX_SLOTS` indexes of one workspace.
 
     Oldest by modification time, and never the one about to be used —
-    which can be the oldest, since reusing an index does not rewrite it.
+    which can be the oldest, since reusing an index does not rewrite it —
+    and never one this process built, for the reason `_IN_USE` gives.
     """
     if not home.is_dir():
         return
@@ -493,7 +505,9 @@ def _evict(home: Path, *, keep: Path) -> None:
         stamp = slot / "key"
         return (stamp if stamp.is_file() else slot).stat().st_mtime
 
-    slots = sorted((p for p in home.iterdir() if p.is_dir() and p != keep), key=used)
+    slots = sorted(
+        (p for p in home.iterdir() if p.is_dir() and p != keep and p not in _IN_USE), key=used
+    )
     for stale in slots[: max(0, len(slots) - (INDEX_SLOTS - 1))]:
         shutil.rmtree(stale, ignore_errors=True)
 
@@ -621,6 +635,7 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
         if os.environ.get("WSINDEX_QUIET") != "1":
             print(f"    reusing the index of {org}", flush=True)
     state.mkdir(parents=True, exist_ok=True)
+    _IN_USE.add(state)
     (state / "key.pending").write_text(key, encoding="utf-8")
     config._data["store"]["uri"] = str(state / "data.lance")
     # Tri-state on purpose: unset means "whatever ships", which is what a
