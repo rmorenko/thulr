@@ -23,18 +23,28 @@ all, which is why the wire shape below is the one every local runner
 speaks.
 
 **The model has to know what code is called, and a small one does not.**
-Pointed at `qwen2.5:3b` on the same machine, with the shipped local
-embedder and everything else unchanged, the same 355 questions went from
-138 answers to **131** — the gain of +20 became a loss of 7. The
-rewordings show why: asked about disabling a test suite's cleanup, the
-small model returns `disable_wiping`, `suite_management`, `set_to_off`,
-which are the question's own words spelled as identifiers. The large one
-returns "option to skip truncation between tests" — and `truncation` is
-the word the code uses and the question does not.
+The same 355 questions, the shipped local embedder, everything unchanged
+but who writes the rewordings:
 
-So this stage is not a string operation, it is domain knowledge, and it
-is worth exactly as much as the model has. Point `url` at something
-small and search gets worse quietly.
+| rewritten by       | answers | against as typed |      p |
+| ------------------ | ------: | ---------------: | -----: |
+| nobody — as typed  |     138 |                — |      — |
+| `qwen2.5:3b` local |     131 |               -7 |   0.34 |
+| `qwen2.5:7b` local |     140 |               +2 |   0.88 |
+| a frontier model   | **158** |          **+20** | 0.0055 |
+
+A dose-response, not noise. The rewordings say why: asked how to disable
+a test suite's cleanup, the small model returns `disable_wiping`,
+`set_to_off` — the question's own words spelled as identifiers — and the
+large one returns "option to skip truncation between tests", where
+`truncation` is a word the code uses and the question does not.
+
+So this stage is not a string operation, it is knowing what code is
+called, and it is worth what the model knows. There is no fully local
+configuration that wins: three billion parameters is worse than not
+rewording at all, and seven is break-even for 4.7 GB of weights and
+seconds a query. Point `url` at something small and search gets worse
+quietly.
 
 **Cutting the question up instead was measured and lost.** Stripping
 function words or sliding a window over them gained nothing and lost a

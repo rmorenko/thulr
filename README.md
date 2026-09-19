@@ -383,15 +383,23 @@ hosted reranker's forty chunks per search and far less than a hosted
 embedder's whole corpus. The wire shape is the chat-completions one, so
 `url` may be `http://localhost:11434/v1/chat/completions`.
 
-**But a small model makes it worse, and that was measured rather than
-assumed.** With `qwen2.5:3b` rewording on the same machine, and nothing
-else changed, the local configuration went from 138 answers of 355 to
-**131** — where the same index with a frontier model's rewordings
-reached 158. What buys the gain is knowing what code calls things: asked
-how to disable a suite's cleanup, the small model answers
-`disable_wiping` and `set_to_off`, the large one answers "option to skip
-truncation between tests". Only one of those contains a word the code
-uses and the question does not.
+**But it has to be a capable model, and that was measured rather than
+assumed.** Same index, same questions, same fusion — only the rewriter
+changes:
+
+| rewritten by       | answers of 355 | against as typed |      p |
+| ------------------ | -------------: | ---------------: | -----: |
+| nobody — as typed  |            138 |                — |      — |
+| `qwen2.5:3b` local |            131 |               −7 |   0.34 |
+| `qwen2.5:7b` local |            140 |               +2 |   0.88 |
+| a frontier model   |        **158** |          **+20** | 0.0055 |
+
+What buys the gain is knowing what code calls things: asked how to
+disable a suite's cleanup, the small model answers `disable_wiping` and
+`set_to_off`, the large one answers "option to skip truncation between
+tests". Only one of those contains a word the code uses and the question
+does not. So a local model keeps everything on the machine and buys
+nothing — three billion parameters is worse than leaving this off.
 
 ```toml
 # Ask the question again in the code's own words. Off unless typed.
