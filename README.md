@@ -381,8 +381,17 @@ as typed:
 **What it sends is the question and no code at all** — less than the
 hosted reranker's forty chunks per search and far less than a hosted
 embedder's whole corpus. The wire shape is the chat-completions one, so
-`url` may be `http://localhost:11434/v1/chat/completions` and then it
-sends nothing anywhere.
+`url` may be `http://localhost:11434/v1/chat/completions`.
+
+**But a small model makes it worse, and that was measured rather than
+assumed.** With `qwen2.5:3b` rewording on the same machine, and nothing
+else changed, the local configuration went from 138 answers of 355 to
+**131** — where the same index with a frontier model's rewordings
+reached 158. What buys the gain is knowing what code calls things: asked
+how to disable a suite's cleanup, the small model answers
+`disable_wiping` and `set_to_off`, the large one answers "option to skip
+truncation between tests". Only one of those contains a word the code
+uses and the question does not.
 
 ```toml
 # Ask the question again in the code's own words. Off unless typed.

@@ -22,6 +22,20 @@ the corpus once. Point `url` at a local server and it sends nothing at
 all, which is why the wire shape below is the one every local runner
 speaks.
 
+**The model has to know what code is called, and a small one does not.**
+Pointed at `qwen2.5:3b` on the same machine, with the shipped local
+embedder and everything else unchanged, the same 355 questions went from
+138 answers to **131** — the gain of +20 became a loss of 7. The
+rewordings show why: asked about disabling a test suite's cleanup, the
+small model returns `disable_wiping`, `suite_management`, `set_to_off`,
+which are the question's own words spelled as identifiers. The large one
+returns "option to skip truncation between tests" — and `truncation` is
+the word the code uses and the question does not.
+
+So this stage is not a string operation, it is domain knowledge, and it
+is worth exactly as much as the model has. Point `url` at something
+small and search gets worse quietly.
+
 **Cutting the question up instead was measured and lost.** Stripping
 function words or sliding a window over them gained nothing and lost a
 dozen answers of 84: the syntax of a question is signal to a model that
