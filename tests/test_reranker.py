@@ -54,3 +54,53 @@ def test_cross_encoder_empty_texts_skips_the_model() -> None:
     r._model = Mock()
     assert r.rank(query="q", texts=[]) == []
     r._model.predict.assert_not_called()
+
+
+def test_a_large_candidate_set_is_split_across_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bound on candidates was never a bound on bytes.
+
+    `RERANK_BUDGET` caps how many chunks reach the reranker and says
+    nothing about their size, so a search whose hundred and twenty
+    candidates happen to be large ones can exceed a provider's per-batch
+    limit. That answer is a 400, it is not retriable, and it ends the
+    search rather than slowing it — observed at 793 079 tokens against a
+    limit of 600 000.
+    """
+    from wsindex.rank import remote
+
+    sent: list[int] = []
+
+    def fake_post(self: object, query: str, texts: object) -> list[float]:
+        sent.append(len(texts))  # type: ignore[arg-type]
+        return [0.5] * len(texts)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(remote.RemoteReranker, "_post", fake_post)
+    ranker = remote.RemoteReranker(model="m", url="http://x", token_env="T")
+    big = ["x" * 30_000] * 60
+
+    scores = ranker.rank(query="q", texts=big)
+
+    assert len(scores) == 60
+    assert len(sent) > 1, "one request would have carried 600 000 estimated tokens"
+    assert sum(sent) == 60, "every candidate is scored exactly once"
+
+
+def test_one_oversized_candidate_still_goes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Alone in its request rather than dropped: truncating is the
+    provider's business, and silently losing a candidate the funnel chose
+    is a worse answer than a truncated one."""
+    from wsindex.rank import remote
+
+    sent: list[int] = []
+
+    def fake_post(self: object, query: str, texts: object) -> list[float]:
+        sent.append(len(texts))  # type: ignore[arg-type]
+        return [0.1] * len(texts)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(remote.RemoteReranker, "_post", fake_post)
+    ranker = remote.RemoteReranker(model="m", url="http://x", token_env="T")
+
+    scores = ranker.rank(query="q", texts=["y" * (remote.BATCH_TOKENS * 4), "short"])
+
+    assert len(scores) == 2
+    assert sent == [1, 1]

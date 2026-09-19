@@ -44,6 +44,45 @@ RETRIES = 6
 """Attempts before giving up, for the reasons that might pass. A wrong
 key fails once — see `wsindex.embed.remote`, which keeps the same rule."""
 
+BATCH_TOKENS = 250_000
+"""How much text one rerank request may carry.
+
+Providers cap a batch and answer 400 when it is exceeded, and that 400 is
+not retriable: it ends the search rather than slowing it. Voyage allows
+600 000 tokens; this is well under, because the estimate below is an
+estimate and the failure it prevents is a crash.
+
+Found by running, not by reading a page: a search whose hundred and
+twenty candidates happened to be large chunks sent 793 079 tokens and
+took the whole query down with it. The number of candidates is bounded
+(`RERANK_BUDGET`) and their *size* is not, so a bound on count was never
+a bound on bytes."""
+
+BATCH_DOCUMENTS = 500
+"""And a cap on count as well, because some providers have one of those
+instead. Under either limit, a request carries whichever is smaller."""
+
+
+def _batches(texts: Sequence[str]) -> list[tuple[int, int]]:
+    """Contiguous runs of candidates that fit one request.
+
+    Sized on three characters to the token, which is this project's
+    measured estimate elsewhere and errs high here on purpose. A single
+    document over the budget still goes on its own: truncating it is the
+    provider's business, and dropping it would silently lose a candidate
+    the funnel chose.
+    """
+    runs: list[tuple[int, int]] = []
+    start, tokens = 0, 0
+    for index, text in enumerate(texts):
+        cost = len(text) // 3 + 1
+        if index > start and (tokens + cost > BATCH_TOKENS or index - start >= BATCH_DOCUMENTS):
+            runs.append((start, index))
+            start, tokens = index, 0
+        tokens += cost
+    runs.append((start, len(texts)))
+    return runs
+
 
 class RemoteReranker(Reranker):
     """Relevance scores from a hosted cross-encoder.
@@ -69,8 +108,21 @@ class RemoteReranker(Reranker):
         return value
 
     def _rank(self, query: str, texts: Sequence[str]) -> list[float]:
+        """Score every candidate, in as many requests as the limit needs.
+
+        A cross-encoder scores each `(query, document)` pair on its own,
+        so splitting the candidates across requests changes no score —
+        unlike splitting a list whose order depends on the set. That is
+        what makes the batching below safe rather than merely convenient.
+        """
         if not texts:
             return []
+        scores: list[float] = []
+        for start, end in _batches(texts):
+            scores.extend(self._post(query, texts[start:end]))
+        return scores
+
+    def _post(self, query: str, texts: Sequence[str]) -> list[float]:
         payload = {"query": query, "documents": list(texts), "model": self._model}
         headers = {"Authorization": f"Bearer {self._token()}"}
         for attempt in range(RETRIES):
