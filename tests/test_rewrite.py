@@ -48,6 +48,16 @@ def test_commentary_and_commands_are_not_queries() -> None:
     ]
 
 
+def test_a_compound_term_is_a_query_even_though_it_is_one_word() -> None:
+    """The first filter here used a three-word minimum and a second model
+    showed it up: `qwen2.5:3b` answers in compounds, which are exactly
+    what a search wants. A threshold on length encodes one model's prose
+    style; what was meant is that a query is not a sentence."""
+    said = "heartbeat-frequency\nheartbeat_check_interval\nSure, here you go."
+
+    assert _phrases(said, 5) == ["heartbeat-frequency", "heartbeat_check_interval"]
+
+
 def test_a_rewriter_that_cannot_reach_its_model_costs_no_answers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

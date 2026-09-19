@@ -32,6 +32,21 @@ a paragraph of explanation about as often. Both are long; real queries
 are not. Measured on 439 rewordings: nothing useful exceeded twelve
 words."""
 
+_SENTENCE_END = (".", ":", "!", "?")
+"""What a query never ends with and a remark always does.
+
+The first rule here was a minimum of three words, and it was wrong in a
+way only a second model showed: `qwen2.5:3b` answers in compounds —
+`heartbeat-check-interval`, `keep-alive-schedule` — which are exactly
+what a search wants and were being thrown away whole. A length threshold
+encodes one model's prose style; this encodes the difference between a
+query and a sentence, which is what was meant.
+
+Permissive on purpose. A useless query costs a fusion arm that finds
+nothing, and that was measured to be free: an arm of weak sub-queries
+scored 60 against 61 with the question still in the merge. A rejected
+good query costs an answer. The asymmetry decides the threshold."""
+
 PROMPT = """A developer asked this about a codebase you cannot see:
 
     {question}
@@ -42,9 +57,10 @@ describe the same thing in the vocabulary the code itself is likely to
 use: the words a programmer would have chosen for the functions,
 settings and types involved.
 
-Plain phrases of three to ten words. No shell commands, no grep, no
-regular expressions, no quotes, no numbering, no explanation, no file
-names. One phrase per line and nothing else."""
+Plain words separated by spaces, three to ten of them — not one
+hyphenated identifier. No shell commands, no grep, no regular
+expressions, no quotes, no numbering, no explanation, no file names, no
+sentences. One phrase per line and nothing else."""
 
 
 class RemoteRewriter(Rewriter):
@@ -131,14 +147,12 @@ def _phrases(said: str, count: int) -> list[str]:
     """
     out: list[str] = []
     for raw in said.splitlines():
-        line = raw.strip(' -*\t".')
-        if not 3 <= len(line.split()) <= MAX_WORDS:
+        line = raw.strip(' -*\t"')
+        if not line or len(line) < 3 or len(line.split()) > MAX_WORDS:
+            continue
+        if line.endswith(_SENTENCE_END):
             continue
         if line.startswith(("grep", "rg ", "find ", "$", "#", "```")):
-            continue
-        # "Here are some options:" is the shape of a preamble and the
-        # shape of nothing else — a query does not end in a colon.
-        if line.endswith(":"):
             continue
         out.append(line)
     return out[:count]
