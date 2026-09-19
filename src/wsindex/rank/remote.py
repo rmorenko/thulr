@@ -34,6 +34,7 @@ more private.
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Sequence
 
 import httpx
@@ -136,8 +137,17 @@ class RemoteReranker(Reranker):
                         f"{self._model} at {self._url} answered "
                         f"{exc.response.status_code}: {exc.response.text[:200]}"
                     ) from exc
-                import time
-
+                time.sleep(2**attempt)
+                continue
+            except httpx.TransportError as exc:
+                # Caught for the same reason the embedder catches it: a
+                # server hanging up mid-request is an accident, not an
+                # answer, and it was ending the search instead of being
+                # retried like the 503 it resembles.
+                if attempt == RETRIES - 1:
+                    raise RuntimeError(
+                        f"{self._model} at {self._url} could not be reached: {exc}"
+                    ) from exc
                 time.sleep(2**attempt)
                 continue
             # Back into the caller's order, and by index rather than by

@@ -122,6 +122,18 @@ class RemoteEmbedder(Embedder):
                 time_to_wait = 2**attempt
                 httpx_sleep(time_to_wait)
                 continue
+            except httpx.TransportError as exc:
+                # A connection reset or a server hanging up is the same
+                # kind of accident as a 503 and was not being treated as
+                # one: only status errors were caught, so a blip ended an
+                # index run that had been embedding for fifty minutes.
+                # `wsindex.rank.remote` keeps the same rule.
+                if attempt == RETRIES - 1:
+                    raise RuntimeError(
+                        f"{self._model} at {self._url} could not be reached: {exc}"
+                    ) from exc
+                httpx_sleep(2**attempt)
+                continue
             rows = reply.json()["data"]
             # By index, not by arrival: the shape permits either order and
             # a silent transposition here would be a ranking bug nobody

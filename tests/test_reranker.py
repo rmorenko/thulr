@@ -104,3 +104,34 @@ def test_one_oversized_candidate_still_goes(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert len(scores) == 2
     assert sent == [1, 1]
+
+
+def test_a_server_that_hangs_up_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dropped connection is an accident, not an answer.
+
+    Only status errors were retried, so `RemoteProtocolError: Server
+    disconnected` propagated and ended the search — observed once in a
+    run of 84 questions. It resembles a 503 and is now treated as one.
+    """
+    import httpx
+
+    from wsindex.rank import remote
+
+    calls = {"n": 0}
+
+    def flaky(url: str, **kwargs: object) -> object:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        return Mock(
+            raise_for_status=Mock(),
+            json=Mock(return_value={"data": [{"index": 0, "relevance_score": 0.7}]}),
+        )
+
+    monkeypatch.setattr("wsindex.rank.remote.httpx.post", flaky)
+    monkeypatch.setattr("wsindex.rank.remote.time.sleep", lambda _: None)
+    monkeypatch.setenv("T", "secret")
+    ranker = remote.RemoteReranker(model="m", url="http://x", token_env="T")
+
+    assert ranker.rank(query="q", texts=["one"]) == [0.7]
+    assert calls["n"] == 2
