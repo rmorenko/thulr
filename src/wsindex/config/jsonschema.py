@@ -22,6 +22,7 @@ from typing import Any
 
 from wsindex.config.schema import (
     DEFAULT_RANK_MODEL,
+    DEFAULT_REWRITE_COUNT,
     Backend,
     LinksBackend,
     Provider,
@@ -218,6 +219,43 @@ def _rank() -> dict[str, Any]:
     )
 
 
+def _rewrite() -> dict[str, Any]:
+    """`[rewrite]`: asking the question in the code's words, off by default."""
+    return _section(
+        {
+            "enabled": {
+                "type": "boolean",
+                "default": False,
+                "description": (
+                    "Also ask the question the way the code is likely to phrase "
+                    "it, and fuse the lists. Sends the question and no code."
+                ),
+            },
+            "model": {"type": "string", "description": "Chat model that rewords."},
+            "url": {
+                "type": "string",
+                "description": (
+                    "A chat-completions endpoint. Point it at a local server and "
+                    "nothing leaves the machine at all."
+                ),
+            },
+            "token_env": {
+                "type": "string",
+                "description": (
+                    "NAME of the environment variable holding the key; empty for "
+                    "a local server that wants none."
+                ),
+            },
+            "count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8,
+                "default": DEFAULT_REWRITE_COUNT,
+            },
+        }
+    )
+
+
 def _links() -> dict[str, Any]:
     """`[links]`: which store answers `refs`, `why` and the drift report."""
     return _section(
@@ -337,6 +375,7 @@ def build() -> dict[str, Any]:
             "index": _index(),
             "stats": _stats(),
             "rank": _rank(),
+            "rewrite": _rewrite(),
             "server": _server(),
             "references": {
                 "type": "object",

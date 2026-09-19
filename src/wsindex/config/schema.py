@@ -17,6 +17,13 @@ from wsindex.model import Kind
 
 DEFAULT_RANK_MODEL = "cross-encoder/ms-marco-MiniLM-L6-v2"
 
+DEFAULT_REWRITE_COUNT = 3
+"""How many rewordings `[rewrite]` asks for.
+
+Three is what the four measurements behind this stage used, and going
+wider was not tried: every extra wording is another full search, so the
+cost is linear where the benefit is unlikely to be."""
+
 
 class Backend(StrEnum):
     """Vector store selector; StrEnum so the value round-trips through TOML as-is.

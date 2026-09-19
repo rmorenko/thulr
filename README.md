@@ -364,6 +364,42 @@ url = "https://api.voyageai.com/v1/rerank"
 token_env = "VOYAGE_API_KEY"
 ```
 
+**And a third posture, which sends less than either.** A question is
+asked in the words a person has; the code is written in the words a
+programmer chose. Turning on `[rewrite]` asks a language model for the
+same question in the second vocabulary and fuses the lists — measured on
+two corpora and both embedders, fusing the rewordings with the question
+as typed:
+
+| configuration            | corpus        | as typed | + rewordings |      p |
+| ------------------------ | ------------- | -------: | -----------: | -----: |
+| `voyage-code-4` + rerank | 355 harvested |      192 |      **217** | 0.0002 |
+| the shipped local model  | 355 harvested |      138 |      **158** | 0.0055 |
+| `voyage-code-4` + rerank | 84 authored   |       61 |       **68** | 0.0391 |
+| the same, descriptive    | 42            |       21 |       **28** | 0.0156 |
+
+**What it sends is the question and no code at all** — less than the
+hosted reranker's forty chunks per search and far less than a hosted
+embedder's whole corpus. The wire shape is the chat-completions one, so
+`url` may be `http://localhost:11434/v1/chat/completions` and then it
+sends nothing anywhere.
+
+```toml
+# Ask the question again in the code's own words. Off unless typed.
+[rewrite]
+enabled = true
+model = "claude-sonnet-4-5"
+url = "https://api.anthropic.com/v1/chat/completions"
+token_env = "ANTHROPIC_API_KEY"   # empty for a local server
+count = 3
+```
+
+Cutting the question up instead was measured and lost: stripping its
+function words or sliding a window over them gained nothing and cost a
+dozen answers of 84. The syntax of a question is signal to a model that
+reads language. What works is a *different wording*, and the question as
+typed stays in the fusion — the arm without it was worse on every cut.
+
 `token_env` names an environment variable and never holds a token — a key
 in a config file is a key in somebody's git history, and it is the same
 rule connectors keep for `token_env` and the link store for `dsn_env`. An

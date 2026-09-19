@@ -26,6 +26,8 @@ from wsindex.paths import ConfigLocation, make_index_dir, resolve_cache_dir, sea
 from wsindex.pipeline import Pipeline
 from wsindex.rank.remote import RemoteReranker
 from wsindex.rank.reranker import CrossEncoderReranker, Reranker
+from wsindex.rewrite.remote import RemoteRewriter
+from wsindex.rewrite.rewriter import Rewriter
 from wsindex.stats import SearchLog
 from wsindex.store import LanceDBStore, VectorStore
 
@@ -97,6 +99,25 @@ def _reranker(config: Config) -> Reranker | None:
     return CrossEncoderReranker(model_name=config.rank_model)
 
 
+def _rewriter(config: Config) -> Rewriter | None:
+    """The stage before retrieval, or None when it is switched off.
+
+    One provider, not two, and the asymmetry with `_reranker` is the
+    point: the wire shape is the chat-completions one, so "remote" covers
+    a hosted provider and a model on this machine equally. A user who
+    runs one locally keeps the promise that nothing leaves; a user who
+    does not sends the question and no code at all.
+    """
+    if not config.rewrite_enabled:
+        return None
+    return RemoteRewriter(
+        model=config.rewrite_model,
+        url=config.rewrite_url,
+        token_env=config.rewrite_token_env,
+        count=config.rewrite_count,
+    )
+
+
 def build_pipeline() -> Pipeline:
     """Composition root: decides *which* objects exist, not what they hold.
 
@@ -116,6 +137,7 @@ def build_pipeline() -> Pipeline:
     make_index_dir(config.index_dir)
     store = build_store(config)
     reranker = _reranker(config)
+    rewriter = _rewriter(config)
     # `state_dir` is index_dir and always will be: the commit each repo
     # was last indexed at is genuinely a note about *this* host, since
     # two machines sit on different branches. Links are not — every
@@ -125,6 +147,7 @@ def build_pipeline() -> Pipeline:
         store=store,
         state_dir=config.index_dir,
         reranker=reranker,
+        rewriter=rewriter,
         links=build_links(config),
         stats=SearchLog(config.index_dir) if config.stats_enabled else None,
     )

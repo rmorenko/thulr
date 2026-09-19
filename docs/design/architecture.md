@@ -131,6 +131,9 @@ elsewhere and each is defended by a number.
 - **`links.py`** — SQL, the inverted index behind `refs` and `why`
   (ADR-9); SQLite by default, Postgres for a shared index (ADR-11).
 - **`rank/`** — the cross-encoder that re-sorts a search's candidates.
+- **`rewrite/`** — the stage before retrieval: asks a language model for
+  the same question in the words the code is likely to use, so the lists
+  can be fused. Sends the question and never any code.
   Off by default: it loads a second model and caps a server at six
   concurrent searches (measured, see the README).
 - **`domains.py`** — the analysis side rather than the search side: what

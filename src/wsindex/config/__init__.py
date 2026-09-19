@@ -28,6 +28,7 @@ from typing import Any, ClassVar
 from wsindex.config.document import render, repo_entry
 from wsindex.config.schema import (
     DEFAULT_RANK_MODEL,
+    DEFAULT_REWRITE_COUNT,
     Backend,
     LinksBackend,
     Provider,
@@ -67,6 +68,7 @@ class Config:
         # `$XDG_CONFIG_HOME` and may run from anywhere.
         "store": {"metric": "cosine"},
         "rank": {"enabled": False, "model": DEFAULT_RANK_MODEL},
+        "rewrite": {"enabled": False, "count": DEFAULT_REWRITE_COUNT},
         # Empty on purpose. A built-in `PROJ-123` pattern is not
         # possible: measured on this repository it matched 198 times and
         # every hit was an internal number — ADR-7, FR-111 — not a
@@ -402,6 +404,36 @@ class Config:
     def rank_url(self) -> str:
         """Endpoint for a remote reranker, in the `{query, documents}` shape."""
         return str(self._setting("rank", "url") or "")
+
+    @property
+    def rewrite_enabled(self) -> bool:
+        """Whether a question is also asked in the code's own words.
+
+        Off by default like every stage that opens a socket, and unlike
+        them it opens one for the *question* only — no code is sent. See
+        `wsindex.rewrite` for the four measurements that justify it.
+        """
+        return bool(self._setting("rewrite", "enabled", False))
+
+    @property
+    def rewrite_model(self) -> str:
+        """Chat model that does the rewording."""
+        return str(self._setting("rewrite", "model") or "")
+
+    @property
+    def rewrite_url(self) -> str:
+        """A chat-completions endpoint, hosted or on this machine."""
+        return str(self._setting("rewrite", "url") or "")
+
+    @property
+    def rewrite_token_env(self) -> str:
+        """NAME of the variable holding the key, or empty for a local server."""
+        return str(self._setting("rewrite", "token_env") or "")
+
+    @property
+    def rewrite_count(self) -> int:
+        """How many rewordings to ask for and fuse."""
+        return int(self._setting("rewrite", "count", DEFAULT_REWRITE_COUNT))
 
     @property
     def rank_token_env(self) -> str:

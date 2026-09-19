@@ -173,6 +173,35 @@
         }
       }
     },
+    "rewrite": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also ask the question the way the code is likely to phrase it, and fuse the lists. Sends the question and no code."
+        },
+        "model": {
+          "type": "string",
+          "description": "Chat model that rewords."
+        },
+        "url": {
+          "type": "string",
+          "description": "A chat-completions endpoint. Point it at a local server and nothing leaves the machine at all."
+        },
+        "token_env": {
+          "type": "string",
+          "description": "NAME of the environment variable holding the key; empty for a local server that wants none."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 3
+        }
+      }
+    },
     "server": {
       "type": "object",
       "additionalProperties": false,

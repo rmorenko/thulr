@@ -49,6 +49,7 @@ from wsindex.ingest.manifests import read_manifests
 from wsindex.links import Edge, Link, LinkKind, LinkStore
 from wsindex.model import Chunk, Hit, Kind, SearchFilter, SourceFile
 from wsindex.rank.reranker import Reranker
+from wsindex.rewrite.rewriter import Rewriter
 from wsindex.run import (
     _WRITE_BATCH,
     Authorship,
@@ -296,6 +297,11 @@ class Pipeline:
         reranker: Optional second stage of the search funnel. Present
             means `search` over-fetches candidates and re-scores them;
             None means the store's own ranking is the answer.
+        rewriter: Optional stage *before* retrieval. Present means the
+            question is also asked in the words the code is likely to
+            use and the lists are fused; None means one query, as
+            before. It sends the question and never any code — see
+            `wsindex.rewrite`.
         stats: Where searches are recorded, or None to record nothing.
             Local by construction and by rule — see `wsindex.stats`.
         links: Where code-to-config edges are recorded, or None to skip
@@ -308,6 +314,7 @@ class Pipeline:
     state_dir: Path
     config: Config = field(default_factory=Config)
     reranker: Reranker | None = None
+    rewriter: Rewriter | None = None
     links: LinkStore | None = None
     stats: SearchLog | None = None
 
@@ -941,6 +948,53 @@ class Pipeline:
     ) -> list[Hit]:
         """Global top-k across all config repos, best score first.
 
+        With a rewriter configured the question is asked several ways and
+        the lists are fused; without one this is exactly the single
+        search it always was. See `wsindex.rewrite` for what that buys
+        and what it sends.
+
+        Args:
+            query: Query text; embedding is the store's business.
+            k: Maximum number of hits in the merged result.
+            repo: Restrict to a single repo id; unknown id is an error,
+                not a silent empty result.
+            filters: Structural filters passed through to the store.
+
+        Returns:
+            At most k hits across all (scoped) repos, best first.
+
+        Raises:
+            ValueError: `repo` is set but not present in the config.
+        """
+        started = time.perf_counter()
+        # The question always goes first and always goes: the arm that
+        # replaced it with rewordings scored worse on every cut, and a
+        # rewriter that returns nothing must leave search as it was.
+        queries = [query, *(self.rewriter.rewrite(query) if self.rewriter else [])]
+        lists = [self._one_query(q, k=k, repo=repo, filters=filters) for q in queries]
+        best = lists[0] if len(lists) == 1 else _within_quota(_fuse(*lists), k=k)
+        if self.stats is not None:
+            self.stats.searched(
+                query,
+                k=k,
+                repo=repo,
+                hits=len(best),
+                top_score=best[0].score if best else None,
+                ms=round((time.perf_counter() - started) * 1000, 2),
+                reranked=self.reranker is not None,
+            )
+        return best
+
+    def _one_query(
+        self,
+        query: str,
+        *,
+        k: int = 10,
+        repo: str | None = None,
+        filters: SearchFilter | None = None,
+    ) -> list[Hit]:
+        """Global top-k across all config repos, best score first.
+
         Merge policy lives here and only here: every dataset is asked for
         k hits (the global top may sit entirely in one repo, so asking for
         less is wrong), then one stable sort merges and cuts to k — on
@@ -968,7 +1022,6 @@ class Pipeline:
         Raises:
             ValueError: `repo` is set but not present in the config.
         """
-        started = time.perf_counter()
         repos = self._scope(repo)
         # Before reading, not after: a store holds the version it opened
         # at, so a long-lived process would answer from the corpus as it
@@ -1039,24 +1092,7 @@ class Pipeline:
         # Not re-sorted when fused: the order *is* the fusion, and
         # sorting by score would put the vector arm back in charge.
         ordered = all_hits if fused else sorted(all_hits, key=lambda h: h.score, reverse=True)
-        best = _within_quota(ordered, k=k)
-        if self.stats is not None:
-            # After the answer is computed, and unable to affect it: a
-            # note about a question must not be able to break answering
-            # it. `searched` swallows its own failures for the same
-            # reason. Measured at 0.05 ms against an 8 ms search —
-            # 0.7%, which is below the run-to-run noise of the search
-            # itself.
-            self.stats.searched(
-                query,
-                k=k,
-                repo=repo,
-                hits=len(best),
-                top_score=best[0].score if best else None,
-                ms=round((time.perf_counter() - started) * 1000, 2),
-                reranked=self.reranker is not None,
-            )
-        return best
+        return _within_quota(ordered, k=k)
 
     def _scope(self, repo: str | None) -> list[Repository]:
         """The repos a query covers, or a named error for an unknown id."""
