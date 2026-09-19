@@ -540,6 +540,13 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     it: a probe that builds its own slightly different pipeline is a
     probe measuring something slightly different.
 
+    **A probe that watches indexing happen must force a rebuild.** The
+    cache makes `index()` a no-op over an unchanged workspace, so a probe
+    collecting chunks as a side effect of embedding them collects
+    nothing — and then compares two arms that are the same arm. That has
+    already happened once and cost an hour: set `WSINDEX_REINDEX=1`
+    around the pass that watches.
+
     The index is kept between runs when `vector_key` is unchanged, and
     wiped otherwise. This is not an optimisation of convenience: a hosted
     embedder takes about fifty minutes and real money to embed this
