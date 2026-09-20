@@ -46,6 +46,18 @@ rewording at all, and seven is break-even for 4.7 GB of weights and
 seconds a query. Point `url` at something small and search gets worse
 quietly.
 
+**Depth is a substitute for this, and that has to be said.** The
+measurements above fix `k=10`. Asked again at `k=30`, the same corpus
+answers 267 as typed and 272 rewritten — five more, and not significant.
+Raising `k` alone is worth +75 where rewriting is worth +25, costs no
+model call, and adds no latency.
+
+What rewriting buys is answers *per chunk read*: 217 in ten hits against
+267 in thirty. So the two are alternatives rather than a stack — worth
+turning on for a reader who wants a short list, and worth leaving off by
+a caller that already asks for depth. The MCP surface defaults to
+`k=20` for exactly that reason and should be assumed to need this less.
+
 **Cutting the question up instead was measured and lost.** Stripping
 function words or sliding a window over them gained nothing and lost a
 dozen answers of 84: the syntax of a question is signal to a model that

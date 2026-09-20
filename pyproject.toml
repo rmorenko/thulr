@@ -277,6 +277,25 @@ ignore = [
   "D106",
   "D107",
 ]
+# `probes/` are one-question experiments, gitignored and read once.
+"probes/**" = [
+  "S101",
+  "S105",
+  "S106",
+  "S311",
+  "S603",
+  "S607",
+  "N812",
+  "C901",
+  # Three loops here append under a condition that a comment explains.
+  # A comprehension would be shorter and would bury the sentence.
+  "PERF401",
+  "D101",
+  "D102",
+  "D103",
+  "D106",
+  "D107",
+]
 
 [tool.ruff.lint.mccabe]
 # Fifteen, to agree with `complexipy`'s gate rather than argue with it at

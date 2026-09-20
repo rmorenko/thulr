@@ -61,6 +61,27 @@ Plain words separated by spaces, three to ten of them — not one
 hyphenated identifier. No shell commands, no grep, no regular
 expressions, no quotes, no numbering, no explanation, no file names, no
 sentences. One phrase per line and nothing else."""
+"""What the model is asked, and it was chosen rather than settled for.
+
+Two alternatives were measured against it on the 84 authored questions,
+each with its own generation pass:
+
+| prompt                                 | answers | descriptive |      p |
+| -------------------------------------- | ------: | ----------: | -----: |
+| as typed, no rewriting                 |      61 |          21 |      — |
+| **this one — the code's vocabulary**   |  **68** |      **27** | 0.0391 |
+| name the *problem*, not the vocabulary |      65 |          25 |   0.34 |
+| plausible identifiers, no sentences    |      63 |          22 |   0.73 |
+
+Both alternatives were reasonable and neither reached significance. The
+second is the interesting loss: five of the six unreachable answers read
+by hand have no prose at all, so describing the *problem* rather than
+guessing the vocabulary looked like the better bet, and it was not.
+
+Nine wordings from all three prompts together also answer 68 — the same
+as three from this one, at three times the cost. Diversity of prompt
+buys nothing over diversity of wording, so the stage asks one prompt
+several times rather than several prompts once."""
 
 
 class RemoteRewriter(Rewriter):

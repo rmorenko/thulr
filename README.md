@@ -411,6 +411,18 @@ token_env = "ANTHROPIC_API_KEY"   # empty for a local server
 count = 3
 ```
 
+**Depth is a substitute, and that decides whether to turn it on.** The
+table above fixes `k=10`. At `k=30` the same corpus answers 267 as typed
+and 272 rewritten — five more, not significant — while raising `k` alone
+is worth +75 and costs no model call at all. What rewriting buys is
+answers *per chunk read*: 217 in ten hits against 267 in thirty. Turn it
+on for a short list; leave it off if you already ask for depth.
+
+Three wordings, because one is not enough and the curve has no knee: at
+`k=10` on 355 questions, none answers 192, one 198 (p = 0.34), two 207,
+three 211 and five 217. A single reworded query is indistinguishable
+from none — what pays is several different wordings agreeing.
+
 Cutting the question up instead was measured and lost: stripping its
 function words or sliding a window over them gained nothing and cost a
 dozen answers of 84. The syntax of a question is signal to a model that

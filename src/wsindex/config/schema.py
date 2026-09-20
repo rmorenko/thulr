@@ -20,9 +20,31 @@ DEFAULT_RANK_MODEL = "cross-encoder/ms-marco-MiniLM-L6-v2"
 DEFAULT_REWRITE_COUNT = 3
 """How many rewordings `[rewrite]` asks for.
 
-Three is what the four measurements behind this stage used, and going
-wider was not tried: every extra wording is another full search, so the
-cost is linear where the benefit is unlikely to be."""
+Swept afterwards, on the 355 harvested questions, by generating five and
+reading prefixes of the list:
+
+| wordings | answers |      p |
+| -------- | ------: | -----: |
+| none     |     192 |      — |
+| 1        |     198 |   0.34 |
+| 2        |     207 | 0.0167 |
+| **3**    | **211** | 0.0054 |
+| 5        |     217 | 0.0010 |
+
+**One is not enough**, and that is the finding rather than the default:
+a single reworded query is indistinguishable from none. What pays is
+several *different* wordings agreeing, which is the argument the hybrid
+arm already stands on.
+
+There is no knee — the curve is still climbing at five — so this is a
+price rather than an optimum. Three, because every extra wording is
+another full search with its own reranking: five buys six answers of 355
+for half again the latency and the bill. A caller who wants them can say
+so.
+
+Asking for five also changes what the first three are, since the model
+plans a set; the prefixes above are therefore near-misses for a shipped
+`count=n` rather than the same thing."""
 
 
 class Backend(StrEnum):

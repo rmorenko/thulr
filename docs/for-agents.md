@@ -95,6 +95,13 @@ than a person does, and that is not a guess — it is the mechanism the
 nine measurements above found. If your client rewrites questions itself,
 leave `[rewrite]` off and save the call.
 
+**And depth is a substitute for it.** The gain was measured at `k=10`.
+At `k=30` the same corpus answers 267 as typed and 272 rewritten, which
+is five and not significant — while raising `k` alone is worth +75. This
+surface already defaults to twenty, so a caller here starts most of the
+way to where rewriting would have taken it, and pays nothing per search
+to be there.
+
 **`budget` caps the answer in tokens, which `k` cannot.** Ten hits are
 anywhere between four hundred tokens and eight thousand depending on what
 they are, and an agent filling a context window cannot spend "ten hits".
