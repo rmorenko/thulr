@@ -31,7 +31,7 @@ dependencies = [
   # LanceDB brings it, and `store/lancedb.py` builds schemas with it
   # directly — the same reason `rich` is listed above rather than left
   # to Typer.
-  "pyarrow>=21,<24",
+  "pyarrow>=21,<26",
   "platformdirs>=4,<5",
   # Typer ships it today, but the CLI imports it directly now.
   "rich>=13,<16",
