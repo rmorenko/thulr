@@ -1316,3 +1316,20 @@ def test_a_repo_too_small_for_domains_is_told_that_and_not_something_else(
 
     assert "too few to have domains" in result.output
     assert "Index first" not in result.output
+
+
+def test_the_search_default_is_the_one_that_was_measured() -> None:
+    """Twenty, and the number is the smaller half of the point.
+
+    Ten shipped from the first day on no measurement, and two things
+    later made it look wrong: `docs/for-developers.md` telling its reader
+    to type `-k 50`, and a sweep finding depth worth +75 answers where
+    the whole rewriting stage is worth +25. Measured on 355 harvested
+    questions, ten answers 173 and twenty answers 209.
+
+    Pinned because a default nobody can see is the easiest thing in a
+    codebase to change back by accident.
+    """
+    from wsindex.cli.searching import DEFAULT_TOP
+
+    assert DEFAULT_TOP == 20

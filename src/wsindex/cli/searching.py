@@ -15,10 +15,41 @@ from wsindex.model import Kind, SearchFilter
 from wsindex.pipeline import Authorship
 from wsindex.ui import render_hits
 
+DEFAULT_TOP = 20
+"""How many hits `wsindex search` returns when nobody says otherwise.
+
+Ten from the first day, on nothing. Measured on the 355 harvested
+questions with the shipped configuration — the local model, no
+reranker — counting both what is found and what has to be scrolled past
+to find it:
+
+| k      | answered | rows | terminal lines |
+| ------ | -------: | ---: | -------------: |
+| 5      |      132 |    5 |            ~40 |
+| 10     |      173 |   10 |            ~80 |
+| **20** |  **209** |   20 |           ~160 |
+| 30     |      226 |   30 |           ~240 |
+| 50     |      248 |   50 |           ~400 |
+
+No knee — the return per row falls smoothly — so this is a price rather
+than an optimum, and the price is one more screen of a rich table for
+thirty-six more answers. Past twenty each screen buys less than the one
+before it.
+
+Two things made ten look wrong before this was measured. The developer
+document tells its reader to type `-k 50 --kind code --kind doc`, and a
+document advising its way around a default is a default asking to be
+changed. And the rewriting sweep found that depth alone is worth +75
+answers where the whole rewriting stage is worth +25.
+
+The MCP surface is twenty for a different reason — its caller may have no
+file to open — and the two agreeing is a coincidence worth noticing
+rather than a rule."""
+
 
 def search(
     query: str,
-    top: Annotated[int, typer.Option("--top", "-k", help="How many hits")] = 10,
+    top: Annotated[int, typer.Option("--top", "-k", help="How many hits")] = DEFAULT_TOP,
     repo: Annotated[str | None, typer.Option("--repo", help="Restrict to a single repo id")] = None,
     lang: Annotated[
         list[str] | None,

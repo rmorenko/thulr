@@ -180,22 +180,29 @@ charges. It never fails your search: an unreachable model, a missing key
 or a useless answer all mean "no rewordings", and the search proceeds
 exactly as it would have.
 
-**A deeper list still pays, and it is a trade rather than a free win.**
-The default holds the answer for 98 of the 204, and
+**Depth is the largest free lever there is, and the default now takes
+most of it.** Measured on 355 harvested questions with the shipped
+configuration:
 
-```console
-$ wsindex search "your question" -k 50 --kind code --kind doc
-```
+| `-k`                 | answers | rows to scan |
+| -------------------- | ------: | -----------: |
+| 5                    |     132 |            5 |
+| 10                   |     173 |           10 |
+| **20 — the default** | **209** |           20 |
+| 30                   |     226 |           30 |
+| 50                   |     248 |           50 |
 
-holds it for **145**. Worth the habit, and worth knowing what it costs —
-an answer at `-k 10` is about 2 200 tokens to read, and five times that
-at `-k 50`.
+The default was ten until this was measured. Twenty because the step to
+it buys thirty-six answers for one more screen, and every screen after
+that buys less than the one before — there is no knee, so it is a price
+rather than a discovery. Type `-k 50` when a question matters enough to
+read ten screens; it is worth another thirty-nine answers.
 
-The depth is doing all of the work there, and the filter none of it.
-Commit messages really do crowd the list — 93 of the 840 top-ten slots on
-the hosted configuration are history rather than code — but dropping them
-changes nothing: 61 answers of 84 with them and 61 without, two questions
-gained and two lost. Use `-k 50` for the depth, not for the filter.
+The filter is not what pays there, and that was measured too. Commit
+messages really do crowd the list — 93 of the 840 top-ten slots on the
+hosted configuration are history rather than code — but dropping them
+changes nothing: 61 answers of 84 with them and 61 without, two gained
+and two lost. Reach for depth, not for `--kind`.
 
 **If your language is not in the table, you get an empty index and no
 warning.** Thirty-three languages and formats are claimed now, including
