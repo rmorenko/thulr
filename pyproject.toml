@@ -46,7 +46,7 @@ wsindex = "wsindex.cli:run"
 # `torch` is declared because `rank/reranker.py` imports it by name to
 # pick a device. It arrives with sentence-transformers either way; saying
 # so keeps a transitive bump from breaking an import we make ourselves.
-ml = ["sentence-transformers>=5.7,<6", "torch>=2.0"]
+ml = ["sentence-transformers>=5.7,<7", "torch>=2.0"]
 server = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.34,<1",
