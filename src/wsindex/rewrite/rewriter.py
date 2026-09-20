@@ -27,9 +27,11 @@ class FakeRewriter(Rewriter):
     """
 
     def __init__(self, *, count: int = 2) -> None:
+        """How many rewordings this fake produces."""
         self._count = count
 
     def rewrite(self, question: str) -> list[str]:
+        """Tails of the question, which is enough shape to assert against."""
         words = question.split()
         if len(words) < 2:
             return []

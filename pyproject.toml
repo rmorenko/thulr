@@ -122,7 +122,102 @@ target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "C4", "PTH", "RUF"]
+select = [
+  "E",
+  "F",
+  "I",
+  "UP",
+  "B",
+  "SIM",
+  "C4",
+  "PTH",
+  "RUF",
+  # Added 2026-09-20, after counting what each would cost on this
+  # codebase rather than guessing. `S` found fourteen things worth
+  # reading, two of which were real; the rest cost nothing and keep a
+  # class of mistake from arriving.
+  "S",    # bandit: what a security page should have to answer for
+  "A",    # builtins shadowed
+  "N",    # naming
+  "PERF",
+  "DTZ",  # a naive datetime is a bug waiting for a second timezone
+  "C90",  # cyclomatic, beside complexipy's cognitive
+  "LOG",
+  "G",    # logging call shapes
+  "RET",
+  "ERA",  # commented-out code
+  # Only the "this has no docstring at all" half. The rest of pydocstyle
+  # is a house style this project deliberately does not keep: 115 of its
+  # findings are `D401`, non-imperative mood, and the docstrings here are
+  # narrative on purpose.
+  "D101",
+  "D102",
+  "D103",
+  "D106",
+  "D107",
+]
+ignore = [
+  # `Busy` and `DocumentNotFound` read better than `BusyError` and
+  # `DocumentNotFoundError`, and the second is plugin-facing: renaming it
+  # for a suffix would break somebody's connector to satisfy a style.
+  "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# A test that cannot use `assert` is not a test, and a fixture with no
+# docstring is not a gap. `scripts/` holds the measuring harnesses: they
+# shell out to git and ripgrep by design and are read as programs rather
+# than as an API.
+#
+# `S105`/`S106` are worth a sentence of their own. They fire on
+# `token_env = "VOYAGE_API_KEY"` — the *name* of an environment
+# variable, which is the one rule this project keeps everywhere
+# precisely so that no key is ever written down. The check cannot tell
+# the difference, and the thing it flags is the cure.
+"tests/**" = [
+  # `test_filter_by_multiple_langs_is_OR` says OR because the test is
+  # about OR. Lowercasing it would make the name worse to read.
+  "N802",
+  "S101",
+  "S104",
+  "S105",
+  "S106",
+  "S108",
+  "S603",
+  "S607",
+  "D101",
+  "D102",
+  "D103",
+  "D106",
+  "D107",
+]
+# The measuring harnesses: they shell out to git and ripgrep on purpose,
+# sample with `random` because nothing here is cryptographic, and import
+# `relevance as R` by a convention older than this rule set.
+"scripts/**" = [
+  "S101",
+  "S105",
+  "S106",
+  "S311",
+  "S603",
+  "S607",
+  "N812",
+  "C901",
+  # Three loops here append under a condition that a comment explains.
+  # A comprehension would be shorter and would bury the sentence.
+  "PERF401",
+  "D101",
+  "D102",
+  "D103",
+  "D106",
+  "D107",
+]
+
+[tool.ruff.lint.mccabe]
+# Fifteen, to agree with `complexipy`'s gate rather than argue with it at
+# ten. Two metrics, one threshold: a function that is fine by one and
+# not the other is a conversation nobody needs.
+max-complexity = 15
 
 [tool.ruff.format]
 quote-style = "double"

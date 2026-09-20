@@ -84,6 +84,7 @@ class RemoteRewriter(Rewriter):
         count: int = 3,
         timeout: float = 30.0,
     ) -> None:
+        """Hold the endpoint; nothing is contacted until something is reworded."""
         self._model = model
         self._url = url
         self._token_env = token_env

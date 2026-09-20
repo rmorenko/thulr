@@ -256,8 +256,8 @@ def run_git(root: Path, *args: str) -> bytes:
         GitCommandError: git ran and exited non-zero.
     """
     try:
-        completed = subprocess.run(
-            ["git", *args],
+        completed = subprocess.run(  # noqa: S603 - argv is a list, so no shell parses it
+            ["git", *args],  # noqa: S607 - git comes from PATH by design: a fixed path is wrong on Homebrew, Nix and most containers
             cwd=root,
             capture_output=True,
             check=False,

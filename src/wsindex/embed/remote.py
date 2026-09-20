@@ -77,6 +77,7 @@ class RemoteEmbedder(Embedder):
         input_types: bool = False,
         timeout: float = 120.0,
     ) -> None:
+        """Hold the endpoint; nothing is contacted until something is embedded."""
         self._model = model
         self._url = url
         self._token_env = token_env
@@ -87,6 +88,7 @@ class RemoteEmbedder(Embedder):
 
     @property
     def dim(self) -> int:
+        """Vector width, as the config declares it rather than as the model says."""
         return self._dim
 
     def _token(self) -> str:

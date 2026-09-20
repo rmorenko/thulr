@@ -651,7 +651,7 @@ class LinkStore:
         """Read edges matching a WHERE clause, ordered for reading."""
         rows = self._db.execute(
             self._sql(
-                "SELECT kind, name, line, src_chunk_id, dst_chunk_id, url, via, repo, path "
+                "SELECT kind, name, line, src_chunk_id, dst_chunk_id, url, via, repo, path "  # noqa: S608 - the clause is a literal written here; every value goes through `?`
                 f"FROM links WHERE {where} ORDER BY {order}repo, path, line"
             ),
             params,
@@ -782,13 +782,13 @@ class LinkStore:
         # other way round it is a wrong answer nobody is told about.
         cursor.execute(
             self._sql(
-                f"{self.dialect.insert_prefix} pruned (norm) "
+                f"{self.dialect.insert_prefix} pruned (norm) "  # noqa: S608 - the clause is a literal written here; every value goes through `?`
                 f"SELECT DISTINCT norm FROM links WHERE {unjoinable}"
                 f"{self.dialect.insert_suffix}"
             ),
             kinds,
         )
-        cursor.execute(self._sql(f"DELETE FROM links WHERE {unjoinable}"), kinds)
+        cursor.execute(self._sql(f"DELETE FROM links WHERE {unjoinable}"), kinds)  # noqa: S608 - the clause is a literal written here; every value goes through `?`
         self._db.commit()
         dropped = max(int(cursor.rowcount), 0)
         if dropped:
@@ -841,7 +841,7 @@ class LinkStore:
             found |= {
                 row[0]
                 for row in self._db.execute(
-                    self._sql(f"SELECT norm FROM pruned WHERE norm IN ({placeholders})"),
+                    self._sql(f"SELECT norm FROM pruned WHERE norm IN ({placeholders})"),  # noqa: S608 - the clause is a literal written here; every value goes through `?`
                     tuple(batch),
                 )
             }
@@ -884,7 +884,7 @@ class LinkStore:
             return []
         placeholders = ", ".join("?" for _ in kinds)
         rows = self._db.execute(
-            self._sql(f"SELECT kind, name, norm, repo FROM links WHERE kind IN ({placeholders})"),
+            self._sql(f"SELECT kind, name, norm, repo FROM links WHERE kind IN ({placeholders})"),  # noqa: S608 - the clause is a literal written here; every value goes through `?`
             tuple(kind.value for kind in kinds),
         ).fetchall()
         return [(LinkKind(kind), name, norm, repo) for kind, name, norm, repo in rows]

@@ -113,6 +113,7 @@ class FakeEmbedder(Embedder):
 
     @property
     def dim(self) -> int:
+        """Vector width this embedder produces."""
         return self._dim
 
     def _embed(self, texts: Sequence[str]) -> list[list[float]]:
@@ -257,7 +258,8 @@ class SentenceTransformerEmbedder(Embedder):
         """Vector width, from the workspace when it said, else the model."""
         if self._declared_dim is None:
             self._model()
-        assert self._declared_dim is not None
+        if self._declared_dim is None:  # pragma: no cover - loading sets it or raises
+            raise RuntimeError(f"{self._model_name} did not report a dimension")
         return self._declared_dim
 
     def count_tokens(self, text: str) -> int:

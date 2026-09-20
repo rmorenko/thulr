@@ -336,7 +336,7 @@ def _in_child(root: Path, rel_paths: Sequence[str]) -> dict[str, dict[int, str]]
         }
     )
     try:
-        finished = subprocess.run(
+        finished = subprocess.run(  # noqa: S603 - argv is a list, so no shell parses it
             [sys.executable, helper],
             input=request.encode("ascii"),
             capture_output=True,

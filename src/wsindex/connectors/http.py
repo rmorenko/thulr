@@ -240,7 +240,10 @@ to answer without a network."""
 
 def _get(url: str, headers: dict[str, str]) -> tuple[bytes, str]:
     """One GET, with the failures a caller has to tell apart."""
-    request = urllib.request.Request(url, headers=headers)
+    # Scheme is not checked here because it is checked before a URL
+    # ever reaches a connector: `claims` accepts http and https and
+    # nothing else, so `file:` cannot arrive.
+    request = urllib.request.Request(url, headers=headers)  # noqa: S310
     try:
         with OPENER.open(request, timeout=TIMEOUT) as response:
             declared = response.headers.get("Content-Length")

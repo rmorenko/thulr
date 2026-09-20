@@ -294,7 +294,7 @@ def _pairs(
     """
     candidates = _proposed(prints)
     found: list[Pair] = []
-    for (left, right), _ in candidates.items():
+    for left, right in candidates:
         if chunks[left][0] == chunks[right][0]:
             continue  # the same file in the same repo: overlapping windows, not a copy
         a, b = prints[left], prints[right]

@@ -855,8 +855,15 @@ class Pipeline:
         return covering[:limit]
 
     def _authors(self, hit: Hit) -> Iterator[Authorship]:
-        """The commits a blame edge attributes this chunk to."""
-        assert self.links is not None
+        """The commits a blame edge attributes this chunk to.
+
+        Raises:
+            RuntimeError: Called without a link store. Every caller
+                checks first; this says so where `python -O` cannot
+                remove the saying.
+        """
+        if self.links is None:  # pragma: no cover - callers guard this
+            raise RuntimeError("_authors needs a link store")
         for edge in self.links.out_of([str(hit.native_id)], kind=LinkKind.BLAMED_BY):
             if edge.dst_chunk_id is None:
                 yield Authorship(commit=edge.name, message=None)

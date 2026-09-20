@@ -304,7 +304,7 @@ class _Session:
         argv = open_in_editor(hit)
         self.out.print(f"[dim]{' '.join(argv)}[/]")
         try:
-            subprocess.run(argv, check=False)
+            subprocess.run(argv, check=False)  # noqa: S603 - argv is a list, and the editor is the user's own $EDITOR
         except OSError as exc:
             self.out.print(f"[red]could not run the editor — {exc}[/]")
 

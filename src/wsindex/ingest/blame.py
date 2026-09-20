@@ -148,8 +148,8 @@ def plain_git(root: Path, path: str, *, timeout: float) -> bytes | None:
     to report those faithfully would be inventing an error protocol to
     replace one that already works.
     """
-    finished = subprocess.run(
-        ["git", "blame", "--porcelain", "--", path],
+    finished = subprocess.run(  # noqa: S603 - argv is a list, so no shell parses it
+        ["git", "blame", "--porcelain", "--", path],  # noqa: S607 - git comes from PATH by design: a fixed path is wrong on Homebrew, Nix and most containers
         cwd=root,
         capture_output=True,
         check=False,

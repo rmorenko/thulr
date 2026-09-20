@@ -82,6 +82,7 @@ def line_span(node: Node) -> tuple[int, int]:
 
 
 def mark_covered(covered: list[bool], *, start: int, end: int) -> None:
+    """First and last line of a node, 1-based and inclusive."""
     for i in range(start, end + 1):
         covered[i] = True
 

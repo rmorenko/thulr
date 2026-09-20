@@ -88,6 +88,7 @@ class Metrics:
     """
 
     def __init__(self) -> None:
+        """Start empty; every counter is created on first use."""
         self._lock = threading.Lock()
         self._requests: dict[tuple[str, str, str], int] = {}
         self._latency: dict[tuple[str, str], _Histogram] = {}
@@ -243,6 +244,7 @@ class Meter:
     """
 
     def __init__(self, app: Any, metrics: Metrics) -> None:
+        """Hold the registry this middleware records into."""
         self._app = app
         self._metrics = metrics
 

@@ -97,6 +97,7 @@ class RemoteReranker(Reranker):
     """
 
     def __init__(self, *, model: str, url: str, token_env: str, timeout: float = 120.0) -> None:
+        """Hold the endpoint; nothing is contacted until something is ranked."""
         self._model = model
         self._url = url
         self._token_env = token_env

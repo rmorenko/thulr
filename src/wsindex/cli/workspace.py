@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -190,7 +190,11 @@ def _indexed_at(config: Config, repo_id: str) -> str:
         commit = state.commits.get(repo_id)
         if commit is None:
             return "  (not indexed)"
-        when = datetime.fromtimestamp(state_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+        when = (
+            datetime.fromtimestamp(state_file.stat().st_mtime, tz=UTC)
+            .astimezone()
+            .strftime("%Y-%m-%d %H:%M")
+        )
         return f"  (indexed {when} at {commit[:7]})"
     except OSError:
         return "  (index state unreadable)"
@@ -264,7 +268,11 @@ def stats(
     if not summary.searches:
         typer.echo("nothing recorded yet — run a search or two")
         return
-    when = datetime.fromtimestamp(summary.since).strftime("%Y-%m-%d") if summary.since else "?"
+    when = (
+        datetime.fromtimestamp(summary.since, tz=UTC).astimezone().strftime("%Y-%m-%d")
+        if summary.since
+        else "?"
+    )
     typer.echo(f"{summary.searches} search(es) since {when}, picked {summary.picks}")
     # Labelled, because the number is honest and reads wrong without it:
     # a CLI search is a fresh process, so this is mostly the model load.

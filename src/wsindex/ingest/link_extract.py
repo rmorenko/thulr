@@ -183,16 +183,16 @@ def _reference_links(chunk: Chunk, templates: Mapping[str, str]) -> list[Link]:
                 )
             )
         for prefix, template in templates.items():
-            for digits in re.findall(re.escape(prefix) + r"(\d+)\b", line):
-                found.append(
-                    Link(
-                        src_chunk_id=chunk.id,
-                        kind=LinkKind.REFERENCES,
-                        name=f"{prefix}{digits}",
-                        line=chunk.start_line + offset,
-                        url=template.format(key=digits),
-                    )
+            found.extend(
+                Link(
+                    src_chunk_id=chunk.id,
+                    kind=LinkKind.REFERENCES,
+                    name=f"{prefix}{digits}",
+                    line=chunk.start_line + offset,
+                    url=template.format(key=digits),
                 )
+                for digits in re.findall(re.escape(prefix) + r"(\d+)\b", line)
+            )
     return found
 
 

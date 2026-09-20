@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import html
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import FastAPI, Form, HTTPException
@@ -110,7 +110,11 @@ def _stats_panel(app: FastAPI) -> str:
         return f'<p class="err">the search log could not be read: {html.escape(str(exc))}</p>'
     if not summary.searches:
         return '<p class="note">nothing recorded yet — run a search or two</p>'
-    since = datetime.fromtimestamp(summary.since).strftime("%Y-%m-%d") if summary.since else "?"
+    since = (
+        datetime.fromtimestamp(summary.since, tz=UTC).astimezone().strftime("%Y-%m-%d")
+        if summary.since
+        else "?"
+    )
     empty = f" · empty {summary.empty} ({summary.empty_rate:.0%})" if summary.empty else ""
     # `html.escape` on every query, and it is not decoration: these
     # strings came from whoever typed them, and this is the one place in
