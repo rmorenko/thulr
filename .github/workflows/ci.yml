@@ -49,6 +49,12 @@ jobs:
       - name: Cognitive complexity (complexipy, max 15 per function)
         run: uv run complexipy src/wsindex
 
+      - name: Dependency hygiene (deptry)
+        run: uv run deptry .
+
+      - name: Known vulnerabilities (pip-audit)
+        run: uv run pip-audit --progress-spinner off
+
       - name: Tests + coverage (pytest-cov, fail under 90%)
         run: uv run pytest --cov --cov-report=term-missing
 

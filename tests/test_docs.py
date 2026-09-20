@@ -71,3 +71,35 @@ def test_a_translation_keeps_the_shape_of_its_original(english: Path, russian: P
     assert skeleton(russian) == skeleton(english), (
         f"{russian} and {english} no longer describe the same document"
     )
+
+
+LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+"""A markdown link's target. Titles (`[x](y "t")`) stop at the space."""
+
+
+def _documents() -> list[Path]:
+    return [Path("README.md"), *sorted(Path("docs").rglob("*.md"))]
+
+
+@pytest.mark.parametrize("document", _documents(), ids=lambda p: str(p))
+def test_every_relative_link_points_at_something(document: Path) -> None:
+    """A renamed document must not leave a dead link behind.
+
+    Relative targets only: an external URL needs a network to check and
+    this suite does not open sockets, while a link *inside* the
+    repository is exactly what a rename breaks and nothing else notices.
+    The pages here cross-reference heavily — `for-teams.md` sends a
+    security reviewer to `for-security.md`, which sends them on again —
+    so a broken one strands the reader mid-argument.
+    """
+    broken = []
+    for target in LINK.findall(document.read_text(encoding="utf-8")):
+        if target.startswith(("http://", "https://", "mailto:", "#")):
+            continue
+        path, _, _anchor = target.partition("#")
+        if not path:
+            continue
+        if not (document.parent / path).exists():
+            broken.append(target)
+
+    assert not broken, f"{document} links to nothing: {broken}"
