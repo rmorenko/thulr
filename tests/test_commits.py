@@ -17,21 +17,21 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config, Repository
-from wsindex.embed import FakeEmbedder
-from wsindex.ingest import commits as commits_module
-from wsindex.ingest.commits import (
+from thulr.config import Config, Repository
+from thulr.embed import FakeEmbedder
+from thulr.ingest import commits as commits_module
+from thulr.ingest.commits import (
     COMMIT_LANG,
     blame_links,
     blame_map,
     commit_chunks,
     read_commits,
 )
-from wsindex.ingest.git_state import GIT_TIMEOUT
-from wsindex.links import LinkKind, LinkStore
-from wsindex.model import Kind, SearchFilter, SourceFile
-from wsindex.pipeline import Pipeline
-from wsindex.store import LanceDBStore
+from thulr.ingest.git_state import GIT_TIMEOUT
+from thulr.links import LinkKind, LinkStore
+from thulr.model import Kind, SearchFilter, SourceFile
+from thulr.pipeline import Pipeline
+from thulr.store import LanceDBStore
 
 Committer = Callable[..., None]
 
@@ -155,7 +155,7 @@ def test_an_empty_message_yields_no_chunk(repo: Path, commit: Committer) -> None
 
 
 def test_blame_links_a_chunk_to_the_commit_that_wrote_it(repo: Path) -> None:
-    from wsindex.ingest import chunk_file
+    from thulr.ingest import chunk_file
 
     commits = read_commits(repo, since=None)
     messages = commit_chunks(commits, repo="r")
@@ -180,7 +180,7 @@ def test_an_untracked_file_yields_no_blame_and_no_crash(repo: Path) -> None:
     # (`ls-files --others` lists them), and git cannot blame
     # a file that is in no commit. Letting that raise would mean one new
     # file breaks indexing for the whole workspace.
-    from wsindex.ingest import chunk_file
+    from thulr.ingest import chunk_file
 
     (repo / "fresh.py").write_text("def g():\n    return 2\n")
     chunks = chunk_file(
@@ -195,7 +195,7 @@ def test_an_untracked_file_yields_no_blame_and_no_crash(repo: Path) -> None:
 def test_a_commit_outside_this_run_still_gets_an_edge(repo: Path) -> None:
     # Knowing *which* commit answers "when did this change" even when the
     # message was indexed by an earlier run.
-    from wsindex.ingest import chunk_file
+    from thulr.ingest import chunk_file
 
     chunks = chunk_file(
         (repo / "a.py").read_text(),

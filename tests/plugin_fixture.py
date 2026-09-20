@@ -8,9 +8,9 @@ of stubbing the one step where the mechanism actually lives.
 
 from collections.abc import Iterator
 
-from wsindex.ingest.ast import Span, def_span, symbol_name
-from wsindex.ingest.languages import GrammarSpec, LanguageSpec
-from wsindex.model import Kind
+from thulr.ingest.ast import Span, def_span, symbol_name
+from thulr.ingest.languages import GrammarSpec, LanguageSpec
+from thulr.model import Kind
 
 
 def go_spans(root: object, lines: list[str], covered: list[bool]) -> list[Span]:

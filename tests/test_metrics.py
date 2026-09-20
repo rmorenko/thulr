@@ -20,7 +20,7 @@ from typing import Any
 import pytest
 from prometheus_client.parser import text_string_to_metric_families
 
-from wsindex.server.metrics import LATENCY_BUCKETS, Metrics, route_of
+from thulr.server.metrics import LATENCY_BUCKETS, Metrics, route_of
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def parse(body: str) -> dict[str, Any]:
     """Every family in the body, by name, as the official parser sees it.
 
     "As the parser sees it" is load-bearing: a counter family written
-    `wsindex_index_runs_total` is named `wsindex_index_runs`, because the
+    `thulr_index_runs_total` is named `thulr_index_runs`, because the
     `_total` belongs to the sample rather than the family. The keys here
     are therefore the stripped names, and the samples keep the suffix.
     """
@@ -60,7 +60,7 @@ def test_an_empty_server_still_emits_valid_exposition(metrics: Metrics) -> None:
     # Before the first request, which is when a scraper first arrives.
     body = rendered(metrics)
 
-    assert "wsindex_build_info" in parse(body)
+    assert "thulr_build_info" in parse(body)
 
 
 def test_every_family_declares_its_type(metrics: Metrics) -> None:
@@ -69,9 +69,9 @@ def test_every_family_declares_its_type(metrics: Metrics) -> None:
 
     families = parse(rendered(metrics))
 
-    assert families["wsindex_http_requests"].type == "counter"
-    assert families["wsindex_http_request_seconds"].type == "histogram"
-    assert families["wsindex_indexing"].type == "gauge"
+    assert families["thulr_http_requests"].type == "counter"
+    assert families["thulr_http_request_seconds"].type == "histogram"
+    assert families["thulr_indexing"].type == "gauge"
 
 
 def test_a_family_with_no_samples_still_announces_itself(metrics: Metrics) -> None:
@@ -79,15 +79,15 @@ def test_a_family_with_no_samples_still_announces_itself(metrics: Metrics) -> No
     # scraper cannot tell from a restart.
     body = rendered(metrics)
 
-    assert "wsindex_index_runs" in parse(body)
-    assert samples(body, "wsindex_index_runs_total") == {}
+    assert "thulr_index_runs" in parse(body)
+    assert samples(body, "thulr_index_runs_total") == {}
 
 
 def test_buckets_are_cumulative_and_end_at_inf(metrics: Metrics) -> None:
     for seconds in (0.001, 0.02, 0.4, 30.0):
         metrics.observed(route="/search", method="GET", status=200, seconds=seconds)
 
-    buckets = samples(rendered(metrics), "wsindex_http_request_seconds_bucket")
+    buckets = samples(rendered(metrics), "thulr_http_request_seconds_bucket")
     by_bound = {
         float(dict(labels)["le"]): value
         for labels, value in buckets.items()
@@ -106,7 +106,7 @@ def test_a_value_exactly_on_a_bound_falls_inside_it(metrics: Metrics) -> None:
     # every dashboard built on it.
     metrics.observed(route="/search", method="GET", status=200, seconds=0.5)
 
-    buckets = samples(rendered(metrics), "wsindex_http_request_seconds_bucket")
+    buckets = samples(rendered(metrics), "thulr_http_request_seconds_bucket")
 
     assert buckets[(("le", "0.5"), ("method", "GET"), ("route", "/search"))] == 1
     assert buckets[(("le", "0.25"), ("method", "GET"), ("route", "/search"))] == 0
@@ -119,8 +119,8 @@ def test_sum_and_count_agree_with_what_was_observed(metrics: Metrics) -> None:
     body = rendered(metrics)
     labels = (("method", "GET"), ("route", "/search"))
 
-    assert samples(body, "wsindex_http_request_seconds_count")[labels] == 3
-    assert samples(body, "wsindex_http_request_seconds_sum")[labels] == pytest.approx(0.6)
+    assert samples(body, "thulr_http_request_seconds_count")[labels] == 3
+    assert samples(body, "thulr_http_request_seconds_sum")[labels] == pytest.approx(0.6)
 
 
 def test_the_slo_has_a_bucket_of_its_own() -> None:
@@ -133,7 +133,7 @@ def test_the_slo_has_a_bucket_of_its_own() -> None:
 def test_a_label_value_with_a_quote_in_it_does_not_break_the_body(metrics: Metrics) -> None:
     metrics.observed(route='/odd"path\\', method="GET", status=200, seconds=0.01)
 
-    found = samples(rendered(metrics), "wsindex_http_requests_total")
+    found = samples(rendered(metrics), "thulr_http_requests_total")
 
     assert (("method", "GET"), ("route", '/odd"path\\'), ("status", "200")) in found
 
@@ -146,7 +146,7 @@ def test_requests_are_counted_by_route_method_and_status(metrics: Metrics) -> No
     metrics.observed(route="/search", method="GET", status=200, seconds=0.01)
     metrics.observed(route="/search", method="GET", status=401, seconds=0.01)
 
-    found = samples(rendered(metrics), "wsindex_http_requests_total")
+    found = samples(rendered(metrics), "thulr_http_requests_total")
 
     assert found[(("method", "GET"), ("route", "/search"), ("status", "200"))] == 2
     assert found[(("method", "GET"), ("route", "/search"), ("status", "401"))] == 1
@@ -159,7 +159,7 @@ def test_a_refused_run_is_not_a_failed_one(metrics: Metrics) -> None:
     metrics.indexed("busy")
     metrics.indexed("error")
 
-    found = samples(rendered(metrics), "wsindex_index_runs_total")
+    found = samples(rendered(metrics), "thulr_index_runs_total")
 
     assert found[(("outcome", "ok"),)] == 1
     assert found[(("outcome", "busy"),)] == 1
@@ -172,26 +172,26 @@ def test_only_a_completed_run_contributes_work_and_time(metrics: Metrics) -> Non
 
     body = rendered(metrics)
 
-    assert samples(body, "wsindex_chunks_written_total")[()] == 10
-    assert samples(body, "wsindex_chunks_deleted_total")[()] == 3
-    assert samples(body, "wsindex_index_seconds_count")[()] == 1
+    assert samples(body, "thulr_chunks_written_total")[()] == 10
+    assert samples(body, "thulr_chunks_deleted_total")[()] == 3
+    assert samples(body, "thulr_index_seconds_count")[()] == 1
 
 
 def test_a_server_that_never_indexed_says_so_with_a_zero(metrics: Metrics) -> None:
     body = rendered(metrics)
 
-    assert samples(body, "wsindex_last_index_success_timestamp_seconds")[()] == 0.0
+    assert samples(body, "thulr_last_index_success_timestamp_seconds")[()] == 0.0
 
 
 def test_the_live_gauges_come_from_the_caller(metrics: Metrics) -> None:
     body = rendered(metrics, indexing=True, repos=7)
 
-    assert samples(body, "wsindex_indexing")[()] == 1.0
-    assert samples(body, "wsindex_repos")[()] == 7.0
+    assert samples(body, "thulr_indexing")[()] == 1.0
+    assert samples(body, "thulr_repos")[()] == 7.0
 
 
 def test_the_version_is_a_label_on_a_constant(metrics: Metrics) -> None:
-    found = samples(rendered(metrics, version="9.9.9"), "wsindex_build_info")
+    found = samples(rendered(metrics, version="9.9.9"), "thulr_build_info")
 
     assert found[(("version", "9.9.9"),)] == 1.0
 
@@ -210,7 +210,7 @@ def test_a_matched_request_is_labelled_by_its_template() -> None:
     class Route:
         path = "/repos/{repo_id}"
 
-    assert route_of({"route": Route(), "path": "/repos/wsindex"}) == "/repos/{repo_id}"
+    assert route_of({"route": Route(), "path": "/repos/thulr"}) == "/repos/{repo_id}"
 
 
 # The endpoint itself — that it is served, guarded, and fed by real

@@ -5,9 +5,9 @@ extra and the real embedding model. The default corpus is the tensorus
 repo — used purely as a real polyglot codebase, not because we still ship
 that backend. Corpus and query are overridable:
 
-    WSINDEX_E2E_REPO  (default: https://github.com/tensorus/tensorus)
-    WSINDEX_E2E_DIR   (default: ~/.cache/wsindex-e2e/<repo name>)
-    WSINDEX_E2E_QUERY (default: "where are tensors stored on disk")
+    THULR_E2E_REPO  (default: https://github.com/tensorus/tensorus)
+    THULR_E2E_DIR   (default: ~/.cache/thulr-e2e/<repo name>)
+    THULR_E2E_QUERY (default: "where are tensors stored on disk")
 
 The clone is shallow and cached between runs; delete the directory to
 re-fetch. The semantic assertion is soft on purpose — it checks that the
@@ -22,22 +22,22 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from wsindex.cli import app
+from thulr.cli import app
 
 pytestmark = pytest.mark.slow
 
-REPO_URL = os.environ.get("WSINDEX_E2E_REPO", "https://github.com/tensorus/tensorus")
-QUERY = os.environ.get("WSINDEX_E2E_QUERY", "where are tensors stored on disk")
+REPO_URL = os.environ.get("THULR_E2E_REPO", "https://github.com/tensorus/tensorus")
+QUERY = os.environ.get("THULR_E2E_QUERY", "where are tensors stored on disk")
 
 runner = CliRunner()
 
 
 def _corpus_dir() -> Path:
-    override = os.environ.get("WSINDEX_E2E_DIR")
+    override = os.environ.get("THULR_E2E_DIR")
     if override:
         return Path(override).expanduser()
     name = REPO_URL.rstrip("/").rsplit("/", 1)[-1]
-    return Path.home() / ".cache" / "wsindex-e2e" / name
+    return Path.home() / ".cache" / "thulr-e2e" / name
 
 
 def test_clone_index_and_search_a_real_repository(
@@ -64,6 +64,6 @@ def test_clone_index_and_search_a_real_repository(
     assert result.exit_code == 0
     hits = [line for line in result.output.splitlines() if line.strip()]
     assert hits and hits[0] != "no results"
-    if "WSINDEX_E2E_QUERY" not in os.environ:
+    if "THULR_E2E_QUERY" not in os.environ:
         # Default corpus + default query: the storage layer must show up.
         assert any("storage" in hit for hit in hits), result.output

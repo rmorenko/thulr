@@ -1,4 +1,4 @@
-# WSIndex — Concept (One-Pager)
+# Thulr — Concept (One-Pager)
 
 > **A record of intent, not of the current build.** This document says
 > what was asked for when it was written. Much of it came true; the
@@ -29,9 +29,9 @@ The result: the knowledge exists, but it can't be found. A person spends time on
 
 ## 2. The Solution Idea (in Two Paragraphs)
 
-**WSIndex** (Workspace Indexer) is a Python CLI application that indexes a developer's entire workspace (to begin with — a collection of git repositories) into a single logical index and provides semantic search over it. You ask a question in natural language or directly with code — and get relevant fragments from several repositories at once: code, configs, documentation. In essence, it answers the questions "where is this already implemented", "where is it defined", and "where is it configured".
+**Thulr** (Workspace Indexer) is a Python CLI application that indexes a developer's entire workspace (to begin with — a collection of git repositories) into a single logical index and provides semantic search over it. You ask a question in natural language or directly with code — and get relevant fragments from several repositories at once: code, configs, documentation. In essence, it answers the questions "where is this already implemented", "where is it defined", and "where is it configured".
 
-Everything runs **locally and self-hosted**: the repositories, the embedding model, and the database live on your machine, and the code never leaves it. WSIndex starts as a learning project — deliberately simple, readable, and pedagogical — but its architecture is laid out so it can grow into a full-fledged product: a unified "development space" with meaning-based search for people and agents.
+Everything runs **locally and self-hosted**: the repositories, the embedding model, and the database live on your machine, and the code never leaves it. Thulr starts as a learning project — deliberately simple, readable, and pedagogical — but its architecture is laid out so it can grow into a full-fledged product: a unified "development space" with meaning-based search for people and agents.
 
 ## 3. How It Works, in Plain Terms
 
@@ -107,9 +107,9 @@ Honestly about scale: this is a learning project. Simplicity and readability mat
 
 ## 7. Value: For the Developer and the AI Agent
 
-**For the developer**, WSIndex saves time on "where is this already implemented". Instead of walking through ten repositories by hand — a single question and an answer like `mcp/client.py:42, call_api, 0.87`. Onboarding into an unfamiliar codebase speeds up: you can ask by meaning rather than guessing the words.
+**For the developer**, Thulr saves time on "where is this already implemented". Instead of walking through ten repositories by hand — a single question and an answer like `mcp/client.py:42, call_api, 0.87`. Onboarding into an unfamiliar codebase speeds up: you can ask by meaning rather than guessing the words.
 
-**For the AI agent**, WSIndex provides a single entry point into the code — a tool that, on request, returns precise fragments from across the entire workspace. The agent stops "hallucinating" about the project's structure and works with real snippets. A telling cross-repo scenario (a growth goal): "where is the `tensorus` API called and what will break if the signature changes" — it links `mcp` and `samples` with the definition in `tensorus`.
+**For the AI agent**, Thulr provides a single entry point into the code — a tool that, on request, returns precise fragments from across the entire workspace. The agent stops "hallucinating" about the project's structure and works with real snippets. A telling cross-repo scenario (a growth goal): "where is the `tensorus` API called and what will break if the signature changes" — it links `mcp` and `samples` with the definition in `tensorus`.
 
 ## 8. Vision for Growing Into a Product
 

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import tomli_w
 
-from wsindex.config import (
+from thulr.config import (
     DEFAULT_RANK_MODEL,
     Backend,
     Config,
@@ -20,8 +20,8 @@ from wsindex.config import (
     Repository,
     RepoSource,
 )
-from wsindex.model import Kind
-from wsindex.paths import Mode
+from thulr.model import Kind
+from thulr.paths import Mode
 
 
 def test_roundtrip(tmp_path: Path) -> None:
@@ -31,7 +31,7 @@ def test_roundtrip(tmp_path: Path) -> None:
     config.add_repo(Repository(id="test1", path="path1/test1"))
     config.add_repo(Repository(id="test2", path="path2/test2"))
     saved = config.to_dict()
-    path = config.save(tmp_path / "wsindex.toml")
+    path = config.save(tmp_path / "thulr.toml")
 
     Config.reset()
     assert Config(path).to_dict() == saved
@@ -66,7 +66,7 @@ def test_tensorus_era_config_is_rejected(tmp_path: Path) -> None:
         "embeddings": {"model": "m", "dim": 8, "provider": "fake"},
         "tensorus": {"base_url": "http://x", "metric": "cosine"},
     }
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(legacy), encoding="utf-8")
     Config.reset()
     with pytest.raises(ValueError, match="tensorus era"):
@@ -78,17 +78,17 @@ def test_store_uri_defaults_to_the_index_dir(tmp_path: Path) -> None:
     # index belongs" — a relative default would follow the CWD instead.
     data = Config.default("demo").to_dict()
     assert "uri" not in data["store"]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
-    assert Config(path).store_uri == str(tmp_path / ".wsindex")
+    assert Config(path).store_uri == str(tmp_path / ".thulr")
 
 
 def test_explicit_store_uri_wins(tmp_path: Path) -> None:
     # The escape hatch for shared storage: an s3 uri must survive intact.
     data = Config.default("demo").to_dict()
     data["store"]["uri"] = "s3://bucket/prefix"
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     assert Config(path).store_uri == "s3://bucket/prefix"
@@ -100,14 +100,14 @@ def test_missing_store_and_rank_sections_still_load(tmp_path: Path) -> None:
     data = Config.default("demo").to_dict()
     del data["store"]
     del data["rank"]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     config = Config(path)
     assert config.metric == "cosine"
     assert not config.rank_enabled
     assert config.rank_model == DEFAULT_RANK_MODEL
-    assert config.store_uri == str(tmp_path / ".wsindex")
+    assert config.store_uri == str(tmp_path / ".thulr")
 
 
 def test_add_repo_duplicate_raises() -> None:
@@ -127,7 +127,7 @@ def test_config_without_provider_is_rejected(tmp_path: Path) -> None:
     # Strict schema on purpose: a silent default would mask typos in the file.
     data = Config.default("demo").to_dict()
     del data["embeddings"]["provider"]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     with pytest.raises(KeyError):
@@ -137,7 +137,7 @@ def test_config_without_provider_is_rejected(tmp_path: Path) -> None:
 def test_config_without_section_is_rejected(tmp_path: Path) -> None:
     data = Config.default("demo").to_dict()
     del data["embeddings"]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     with pytest.raises(KeyError):
@@ -147,7 +147,7 @@ def test_config_without_section_is_rejected(tmp_path: Path) -> None:
 def test_unknown_provider_value_is_rejected(tmp_path: Path) -> None:
     data = Config.default("demo").to_dict()
     data["embeddings"]["provider"] = "nonsense"
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     with pytest.raises(ValueError, match="nonsense"):
@@ -157,7 +157,7 @@ def test_unknown_provider_value_is_rejected(tmp_path: Path) -> None:
 def test_repo_entry_without_path_is_rejected(tmp_path: Path) -> None:
     data = Config.default("demo").to_dict()
     data["repos"] = [{"id": "orphan"}]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     with pytest.raises(ValueError, match="'id' and 'path'"):
@@ -167,7 +167,7 @@ def test_repo_entry_without_path_is_rejected(tmp_path: Path) -> None:
 def test_file_without_repos_section_loads_as_empty(tmp_path: Path) -> None:
     data = Config.default("demo").to_dict()
     del data["repos"]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     assert Config(path).repos == []
@@ -177,8 +177,8 @@ def test_saved_file_is_valid_toml(tmp_path: Path) -> None:
     config = Config.default("demo")
     config.add_repo(Repository(id="test1", path="path1/test1"))
     config.add_repo(Repository(id="test2", path="path2/test2"))
-    config.save(tmp_path / "wsindex.toml")
-    data = tomllib.loads((tmp_path / "wsindex.toml").read_text())
+    config.save(tmp_path / "thulr.toml")
+    data = tomllib.loads((tmp_path / "thulr.toml").read_text())
     assert data["workspace"]["backend"] == "local"
     assert data["repos"][0]["id"] == "test1"
 
@@ -188,7 +188,7 @@ def test_save_without_a_path_needs_a_source_file(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="built from defaults"):
         config.save()
 
-    path = config.save(tmp_path / "wsindex.toml")
+    path = config.save(tmp_path / "thulr.toml")
     Config.reset()
     loaded = Config(path)
     loaded.add_repo(Repository(id="late", path="somewhere"))
@@ -200,14 +200,14 @@ def test_save_without_a_path_needs_a_source_file(tmp_path: Path) -> None:
 
 
 def test_config_is_one_instance(tmp_path: Path) -> None:
-    path = Config.default("demo").save(tmp_path / "wsindex.toml")
+    path = Config.default("demo").save(tmp_path / "thulr.toml")
     Config.reset()
     # `is`, not `==`: singleton means one object shared, not equal values.
     assert Config(path) is Config()
 
 
 def test_second_construction_does_not_reload(tmp_path: Path) -> None:
-    path = Config.default("from-file").save(tmp_path / "wsindex.toml")
+    path = Config.default("from-file").save(tmp_path / "thulr.toml")
     Config.reset()
     Config(path)
     # Discovery is rigged to find nothing; a second __init__ pass would
@@ -230,7 +230,7 @@ def test_missing_file_falls_back_to_defaults(
     assert config.location is None
     assert config.path is None
     assert config.name == "default"
-    # A fallback must not materialize anything: only `wsindex init` writes.
+    # A fallback must not materialize anything: only `thulr init` writes.
     assert list(tmp_path.iterdir()) == []
     # Nor say anything: reporting it needs a user, which this module has
     # no idea about — the CLI does it in `_config`.
@@ -248,8 +248,8 @@ def test_missing_explicit_path_falls_back_to_defaults(tmp_path: Path) -> None:
 
 def test_explicit_path_gets_override_mode(tmp_path: Path) -> None:
     # Mode drives where the index lives; an explicitly named file behaves
-    # like $WSINDEX_CONFIG — index next to the config, not in XDG data.
-    path = Config.default("demo").save(tmp_path / "wsindex.toml")
+    # like $THULR_CONFIG — index next to the config, not in XDG data.
+    path = Config.default("demo").save(tmp_path / "thulr.toml")
     Config.reset()
     location = Config(path).location
     assert location is not None
@@ -258,10 +258,10 @@ def test_explicit_path_gets_override_mode(tmp_path: Path) -> None:
 
 
 def test_index_dir_follows_the_config_location(tmp_path: Path) -> None:
-    path = Config.default("demo").save(tmp_path / "wsindex.toml")
+    path = Config.default("demo").save(tmp_path / "thulr.toml")
     Config.reset()
-    # Explicit path behaves like $WSINDEX_CONFIG: index next to the config.
-    assert Config(path).index_dir == tmp_path / ".wsindex"
+    # Explicit path behaves like $THULR_CONFIG: index next to the config.
+    assert Config(path).index_dir == tmp_path / ".thulr"
 
 
 def test_index_dir_without_a_config_file_raises() -> None:
@@ -319,7 +319,7 @@ def test_remote_round_trips_through_the_file(tmp_path: Path) -> None:
     config.add_repo(
         Repository(id="upstream", path="/checkouts/up", remote="https://example.invalid/r.git")
     )
-    path = config.save(tmp_path / "wsindex.toml")
+    path = config.save(tmp_path / "thulr.toml")
 
     Config.reset()
     assert Config(path).repos[0].remote == "https://example.invalid/r.git"
@@ -338,7 +338,7 @@ def test_empty_remote_string_reads_as_no_remote(tmp_path: Path) -> None:
     # sync should try to clone from an empty url.
     data = Config.default("demo").to_dict()
     data["repos"] = [{"id": "r", "path": "/p", "remote": ""}]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     assert Config(path).repos[0].remote is None
@@ -350,7 +350,7 @@ def test_empty_remote_string_reads_as_no_remote(tmp_path: Path) -> None:
 def write(tmp_path: Path, repos: list[dict[str, object]]) -> Path:
     data = Config.default("demo").to_dict()
     data["repos"] = repos
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     return path
@@ -361,7 +361,7 @@ def test_a_snapshot_repo_round_trips(tmp_path: Path) -> None:
     config.add_repo(
         Repository(id="docs", path="snap", source=RepoSource.CONNECTOR, urls=("https://x/a",))
     )
-    path = config.save(tmp_path / "wsindex.toml")
+    path = config.save(tmp_path / "thulr.toml")
 
     Config.reset()
     repo = Config(path).repos[0]
@@ -481,7 +481,7 @@ def test_a_saved_config_can_be_hand_edited(tmp_path: Path) -> None:
     config = Config.default("demo")
     config.add_repo(Repository(id="app", path="p", ignore=("dist/*",)))
     config._data["repos"][0]["formats"] = {".sql": {"lang": "sql", "kind": "code"}}
-    path = config.save(tmp_path / "wsindex.toml")
+    path = config.save(tmp_path / "thulr.toml")
 
     text = path.read_text(encoding="utf-8")
     assert "[[repos]]" in text
@@ -498,7 +498,7 @@ def test_a_saved_config_can_be_hand_edited(tmp_path: Path) -> None:
 def test_a_config_with_no_repos_leaves_room_for_one(tmp_path: Path) -> None:
     # `repos = []` would be the same trap: a static empty array cannot
     # become an array of tables.
-    path = Config.default("demo").save(tmp_path / "wsindex.toml")
+    path = Config.default("demo").save(tmp_path / "thulr.toml")
     assert "repos" not in path.read_text(encoding="utf-8")
 
     path.write_text(
@@ -512,8 +512,8 @@ def test_max_commits_defaults_to_absent_rather_than_to_a_number(tmp_path: Path) 
     """None, not `MAX_COMMITS`, and the reason is layering.
 
     Config sits under everything and is imported by every command.
-    Reaching up into `wsindex.ingest` for a default would put 30 ms of
-    tree-sitter and model imports behind `wsindex --help`; `read_commits`
+    Reaching up into `thulr.ingest` for a default would put 30 ms of
+    tree-sitter and model imports behind `thulr --help`; `read_commits`
     applies the default instead, where it is documented.
     """
     Config.reset()
@@ -534,7 +534,7 @@ def test_the_index_section_is_accepted_by_the_validator(tmp_path: Path) -> None:
     # The schema is generated from the same constants the validator uses,
     # so a section the generator does not know is a section that makes a
     # valid config unloadable.
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(
         '[workspace]\nname = "w"\nbackend = "local"\n\n'
         '[embeddings]\nmodel = "m"\ndim = 8\nprovider = "fake"\n\n'

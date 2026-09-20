@@ -16,9 +16,9 @@ from typing import ClassVar
 
 import pytest
 
-from wsindex.connectors import BUILTIN, Connector, ConnectorSpec, Document, DocumentNotFound
-from wsindex.ingest.git_state import decode_path, run_git
-from wsindex.snapshot import SnapshotReport, document_path, materialize, render
+from thulr.connectors import BUILTIN, Connector, ConnectorSpec, Document, DocumentNotFound
+from thulr.ingest.git_state import decode_path, run_git
+from thulr.snapshot import SnapshotReport, document_path, materialize, render
 
 ANY_URL = ConnectorSpec(type="fake", url_pattern="https://*")
 
@@ -203,7 +203,7 @@ def test_a_first_sync_creates_the_repository_and_commits(
     assert git(root, "log", "--format=%s") == "sync: 1 added"
 
 
-def test_the_commit_is_wsindexs_own(tmp_path: Path, fake_source: dict[str, Document]) -> None:
+def test_the_commit_is_thulrs_own(tmp_path: Path, fake_source: dict[str, Document]) -> None:
     # No identity is configured anywhere (see `hermetic_git`), so this
     # also proves a snapshot commits on a bare machine.
     fake_source["https://example.com/a"] = doc("https://example.com/a")
@@ -211,7 +211,7 @@ def test_the_commit_is_wsindexs_own(tmp_path: Path, fake_source: dict[str, Docum
 
     materialize(root, urls=list(fake_source), specs=[ANY_URL])
 
-    assert git(root, "log", "--format=%an <%ae>") == "wsindex <wsindex@localhost>"
+    assert git(root, "log", "--format=%an <%ae>") == "thulr <thulr@localhost>"
 
 
 def test_an_unchanged_document_produces_no_commit(

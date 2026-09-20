@@ -15,12 +15,12 @@ from typing import Any
 
 import pytest
 
-from wsindex.config import Config, Repository
-from wsindex.embed import FakeEmbedder
-from wsindex.model import Kind, SourceFile
-from wsindex.pipeline import Pipeline
-from wsindex.stats import STATS_FILE, SearchLog
-from wsindex.store import LanceDBStore
+from thulr.config import Config, Repository
+from thulr.embed import FakeEmbedder
+from thulr.model import Kind, SourceFile
+from thulr.pipeline import Pipeline
+from thulr.stats import STATS_FILE, SearchLog
+from thulr.store import LanceDBStore
 
 
 @pytest.fixture

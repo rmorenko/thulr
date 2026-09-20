@@ -34,9 +34,9 @@ from acceptance import (
     make_config,
 )
 
-from wsindex.embed.embedder import Embedder
-from wsindex.pipeline import Pipeline
-from wsindex.store.lancedb import LanceDBStore
+from thulr.embed.embedder import Embedder
+from thulr.pipeline import Pipeline
+from thulr.store.lancedb import LanceDBStore
 
 # (label, model_name, trust_remote_code).
 # Ordered from cheapest to heaviest so partial runs still yield the
@@ -110,7 +110,7 @@ def run_model(label: str, model_name: str, trust_remote_code: bool, corpus: Path
     print(f"  loaded (dim={embedder.dim}) in {load_seconds:.1f}s")
 
     with tempfile.TemporaryDirectory() as tmp:
-        store = LanceDBStore(uri=str(Path(tmp) / ".wsindex"), embedder=embedder)
+        store = LanceDBStore(uri=str(Path(tmp) / ".thulr"), embedder=embedder)
         # Installs the process-wide Config; the pipeline reads its repo
         # list from `Config()` at call time, not from a constructor arg.
         make_config(corpus, "corpus")

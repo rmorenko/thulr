@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING
 import pytest
 
 from helpers import needs_grammar
-from wsindex.ingest.ast import HAS_TREE_SITTER, gap_spans
-from wsindex.ingest.ast.nested import _preamble_start
-from wsindex.ingest.ast.rust import POLICY as RUST_POLICY
-from wsindex.ingest.chunker import chunk_file
-from wsindex.ingest.languages import REGISTRY
-from wsindex.ingest.text_chunker import MAX_CHUNK_CHARS
-from wsindex.model import Chunk, Kind, SourceFile
+from thulr.ingest.ast import HAS_TREE_SITTER, gap_spans
+from thulr.ingest.ast.nested import _preamble_start
+from thulr.ingest.ast.rust import POLICY as RUST_POLICY
+from thulr.ingest.chunker import chunk_file
+from thulr.ingest.languages import REGISTRY
+from thulr.ingest.text_chunker import MAX_CHUNK_CHARS
+from thulr.model import Chunk, Kind, SourceFile
 
 if TYPE_CHECKING:
     from tree_sitter import Node

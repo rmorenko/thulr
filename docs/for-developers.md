@@ -1,10 +1,10 @@
-# wsindex, for the developer deciding whether to install it
+# thulr, for the developer deciding whether to install it
 
 ## The one thing worth knowing first
 
 **There is a class of question about unfamiliar code that `grep` does not
 answer badly — it answers zero.** A tester wrote 42 of them as what a
-developer joining that codebase would ask, before wsindex was allowed to
+developer joining that codebase would ask, before thulr was allowed to
 run, and every word of four letters or more from the question was
 mechanically checked absent from the answer file. *"Is there logic that
 skips the wipe when nothing changed since last time?"*
@@ -13,7 +13,7 @@ skips the wipe when nothing changed since last time?"*
 it is roughly half of what people actually ask about code they do not
 know.
 
-wsindex answers **21 of the 42** in the top ten, 14 in the top three, 7
+thulr answers **21 of the 42** in the top ten, 14 in the top three, 7
 first — with a hosted embedder. With the model that ships, **1**.
 
 Read that pair together, because it is the whole decision. The
@@ -47,7 +47,7 @@ sockets. There is no account and no server to run.
 On 204 questions taken from the issue trackers of the projects being
 indexed — real questions, in the words of people who had never heard of
 this tool — the fully local default puts the right file in the top ten 98
-times. `ripgrep` manages 71. Paired, that is 48 questions only wsindex
+times. `ripgrep` manages 71. Paired, that is 48 questions only thulr
 answers against 21 only ripgrep answers, p = 0.0016.
 
 **Read the other depth before you get excited.** In the top *three* the
@@ -106,21 +106,21 @@ the exact name, grep is still the better tool.
 only thing here with no alternative, and it is the reason to install.
 
 **Finding the right file in a codebase too big to grep.** On DBeaver —
-11 786 files, 125 000 chunks — wsindex put the right file in the top three
+11 786 files, 125 000 chunks — thulr put the right file in the top three
 for four out of four identifier questions. `ripgrep` found one of the four
 and buried two more in lists of over twenty files.
 
 **One question, several repositories.** On 14 questions whose answer is
-in a different repository from the one you would open first, wsindex
+in a different repository from the one you would open first, thulr
 found 12 and `ripgrep` 6. Searching six repos at once without remembering
 which one holds what is not a trick, it is just what the tool does.
 
-**Knowing why a file is missing.** `wsindex explain path/to/file` tells
+**Knowing why a file is missing.** `thulr explain path/to/file` tells
 you whether it was indexed, as what, and if not, which rule left it out.
 In the field trial it was asked about 240 files and answered correctly
 every time. Use it the moment anything looks wrong.
 
-**Re-indexing that costs nothing.** Running `wsindex index` again after
+**Re-indexing that costs nothing.** Running `thulr index` again after
 no changes takes under a second and does not get slower as the corpus
 grows — 0.68 s on the 125 000-chunk workspace. You can put it in a hook
 and forget it.
@@ -209,7 +209,7 @@ warning.** Thirty-three languages and formats are claimed now, including
 the three that used to be the reason not to install — Scala, Swift and
 Objective-C — plus Elixir, SQL, HCL, shell and the config formats. If
 yours is not among them its files are skipped rather than chunked as
-text. Check with `wsindex explain` on any source file before you trust an
+text. Check with `thulr explain` on any source file before you trust an
 index; if it says *no language claims this suffix*, add a `formats` entry
 for the repo and re-index.
 
@@ -245,18 +245,18 @@ today, and pretending otherwise would waste your evening.
 ## Starting
 
 ```console
-$ wsindex init myworkspace
-$ wsindex add-repo api ~/checkouts/api
-$ wsindex add-repo docs ~/checkouts/docs
-$ wsindex index
-$ wsindex search "retry backoff" -k 50 --kind code
+$ thulr init myworkspace
+$ thulr add-repo api ~/checkouts/api
+$ thulr add-repo docs ~/checkouts/docs
+$ thulr index
+$ thulr search "retry backoff" -k 50 --kind code
 ```
 
-`wsindex shell` keeps the model loaded between questions, which is worth
+`thulr shell` keeps the model loaded between questions, which is worth
 it after the second search — a cold search pays about two seconds to load
 the model, and that is most of what you wait for.
 
-`wsindex status` shows what is indexed and at which commit. `wsindex explain <path>` is the first thing to run when an answer looks wrong.
+`thulr status` shows what is indexed and at which commit. `thulr explain <path>` is the first thing to run when an answer looks wrong.
 
 See [field-trial.md](field-trial.md) for how all of this was measured and
 what else it found.

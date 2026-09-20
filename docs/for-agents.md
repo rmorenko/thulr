@@ -1,4 +1,4 @@
-# wsindex for agents, and for the person wiring one up
+# thulr for agents, and for the person wiring one up
 
 ## Read this before you wire anything up
 
@@ -23,7 +23,7 @@ only where code lives, which is the question these tools were built for
 and the one where a wrong answer cannot be recovered by working harder.
 The ninth took `Bash` and `Grep` away and left `Read` and `Glob`, the
 policy some harnesses actually run: losing the shell cost the control
-three answers and cost the wsindex arm the same three.
+three answers and cost the thulr arm the same three.
 
 **It is not a retrieval failure, and that is the useful part.** The agent
 called these tools in every single run of the last three. They put the
@@ -153,7 +153,7 @@ why handing it to an agent changed nothing. It does not bridge
 
 **Reaching the answer costs about a tenth of the reading** — for a fixed
 reading policy, not for a model. Over the same 204 tasks, `grep` read a
-window around every match the way `rg -C` shows it, wsindex read the line
+window around every match the way `rg -C` shows it, thulr read the line
 ranges it ranked, and both stopped when a file holding the answer was in
 front of them: 125 tasks found against 112, median 1 263 tokens against
 13 474, cheaper on 89 of the 102 both found. This measures the size of
@@ -194,10 +194,10 @@ promise rather than this project's.
 // Claude Code, .mcp.json
 {
   "mcpServers": {
-    "wsindex": { "command": "wsindex", "args": ["mcp"] }
+    "thulr": { "command": "thulr", "args": ["mcp"] }
   }
 }
 ```
 
 The server reads the workspace config the same way the CLI does, so
-whatever `wsindex status` shows is what the agent will search.
+whatever `thulr status` shows is what the agent will search.

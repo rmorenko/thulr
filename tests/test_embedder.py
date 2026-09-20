@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from wsindex.embed import FakeEmbedder, SentenceTransformerEmbedder
+from thulr.embed import FakeEmbedder, SentenceTransformerEmbedder
 
 
 class FakeST:
@@ -73,7 +73,7 @@ def test_missing_ml_extra_is_reported_when_something_embeds(
 ) -> None:
     # Not at construction: checking for the extra means importing torch,
     # which is 1.9 s, and a command that opens a store without embedding
-    # should not pay it. `wsindex compact` went from 9.7 s to 0.9 s.
+    # should not pay it. `thulr compact` went from 9.7 s to 0.9 s.
     monkeypatch.setitem(sys.modules, "sentence_transformers", None)
     embedder = SentenceTransformerEmbedder(model_name="irrelevant", dim=8)
 
@@ -96,7 +96,7 @@ def test_model_without_dim_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_cache_folder_is_passed_through_and_created(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Wsindex owns its model cache under $XDG_CACHE_HOME/wsindex/models/ so
+    # Thulr owns its model cache under $XDG_CACHE_HOME/thulr/models/ so
     # the composition root can control where a ~90 MB download lands (see
     # ADR-8 amendment). The embedder must both propagate the path to
     # sentence-transformers AND create the directory before use — the
@@ -117,7 +117,7 @@ def test_cache_folder_is_passed_through_and_created(
     fake.SentenceTransformer = CapturingST  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
 
-    cache = tmp_path / "cache" / "wsindex" / "models"
+    cache = tmp_path / "cache" / "thulr" / "models"
     assert not cache.exists()
     SentenceTransformerEmbedder(model_name="irrelevant", cache_folder=cache).embed(["x"])
     assert cache.is_dir()
@@ -198,7 +198,7 @@ def _fake_module(monkeypatch: pytest.MonkeyPatch, cls: object) -> None:
 
 
 def test_nothing_loads_until_something_embeds(monkeypatch: pytest.MonkeyPatch) -> None:
-    # `wsindex compact` opens a store and never embeds a thing. It used to
+    # `thulr compact` opens a store and never embeds a thing. It used to
     # spend 9.7 seconds on an empty index loading a model it never called.
     loads: list[str] = []
 

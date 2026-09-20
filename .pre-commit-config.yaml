@@ -61,7 +61,7 @@ repos:
         pass_filenames: false
       - id: complexipy
         name: complexipy
-        entry: uv run complexipy src/wsindex
+        entry: uv run complexipy src/thulr
         language: system
         types: [python]
         pass_filenames: false

@@ -14,9 +14,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from wsindex.embed.embedder import FakeEmbedder
-from wsindex.model import Chunk, Hit, Kind, SearchFilter, SourceFile
-from wsindex.store.lancedb import LanceDBStore, retrieval_text
+from thulr.embed.embedder import FakeEmbedder
+from thulr.model import Chunk, Hit, Kind, SearchFilter, SourceFile
+from thulr.store.lancedb import LanceDBStore, retrieval_text
 
 DIM = 8
 
@@ -885,7 +885,7 @@ def test_fusion_prefers_what_both_arms_found() -> None:
     # The property rank fusion is chosen for: the arms fail differently,
     # so agreement is evidence where a single arm's confidence is not.
     # `second` is nobody's top hit and beats two chunks that are.
-    from wsindex.pipeline import _fuse
+    from thulr.pipeline import _fuse
 
     def hit(name: str) -> Hit:
         return Hit(score=1.0, native_id=name, metadata={"path": name})

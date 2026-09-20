@@ -19,10 +19,10 @@ Usage:
     uv run poe bench -- --baseline bench.json   # compare against one
 
 Environment:
-    WSINDEX_E2E_REPO   corpus repo (the same one acceptance grades on)
-    WSINDEX_BENCH_DIR  clone cache dir; separate from acceptance's on
+    THULR_E2E_REPO   corpus repo (the same one acceptance grades on)
+    THULR_BENCH_DIR  clone cache dir; separate from acceptance's on
                        purpose — see `bench_corpus`
-    WSINDEX_BENCH_FAST set to "1" for the fake embedder — for checking
+    THULR_BENCH_FAST set to "1" for the fake embedder — for checking
                        the harness itself, never for a real number.
 """
 
@@ -153,16 +153,16 @@ def tree_bytes(path: Path) -> int:
 
 def build(corpus: Path, index_dir: Path) -> Any:
     """A pipeline over the fixed corpus, wired the way the CLI wires one."""
-    from wsindex.config import Config, Repository
-    from wsindex.embed import FakeEmbedder, SentenceTransformerEmbedder
-    from wsindex.links import LinkStore
-    from wsindex.pipeline import Pipeline
-    from wsindex.store import LanceDBStore
+    from thulr.config import Config, Repository
+    from thulr.embed import FakeEmbedder, SentenceTransformerEmbedder
+    from thulr.links import LinkStore
+    from thulr.pipeline import Pipeline
+    from thulr.store import LanceDBStore
 
     config = Config.default("bench")
     config._data["store"] = {"uri": str(index_dir / "db")}
     config.add_repo(Repository(id="corpus", path=str(corpus)))
-    fast = os.environ.get("WSINDEX_BENCH_FAST") == "1"
+    fast = os.environ.get("THULR_BENCH_FAST") == "1"
     embedder = (
         FakeEmbedder(dim=384) if fast else SentenceTransformerEmbedder(config.model, dim=config.dim)
     )
@@ -250,7 +250,7 @@ def _search(corpus: Path, index_dir: Path, *, rerank: bool) -> Measurement:
     build(corpus, index_dir).index()
     pipeline = build(corpus, index_dir)
     if rerank:
-        from wsindex.rank.reranker import CrossEncoderReranker
+        from thulr.rank.reranker import CrossEncoderReranker
 
         pipeline = type(pipeline)(
             store=pipeline.store,
@@ -283,8 +283,8 @@ def _search(corpus: Path, index_dir: Path, *, rerank: bool) -> Measurement:
 def scenario_startup(corpus: Path, index_dir: Path) -> Measurement:
     """Everything before the first answer: imports, model, store.
 
-    The number a person actually experiences on `wsindex search`, and
-    the reason `wsindex shell` exists.
+    The number a person actually experiences on `thulr search`, and
+    the reason `thulr shell` exists.
     """
     started = time.monotonic()
     pipeline = build(corpus, index_dir)
@@ -411,7 +411,7 @@ def environment() -> dict[str, str]:
         "load": f"{average:.2f} on {cores} cores",
         "python": platform.python_version(),
         "platform": f"{platform.system()} {platform.machine()}",
-        "embedder": "fake" if os.environ.get("WSINDEX_BENCH_FAST") == "1" else "real",
+        "embedder": "fake" if os.environ.get("THULR_BENCH_FAST") == "1" else "real",
     }
 
 
@@ -459,7 +459,7 @@ def render(env: dict[str, str], runs: list[Measurement], drift: list[str] | None
     """The report, in the shape the plan's journal wants."""
     head = " · ".join(f"{key} `{value}`" for key, value in env.items())
     lines = [
-        "# wsindex benchmarks",
+        "# thulr benchmarks",
         "",
         head,
         "",
@@ -547,7 +547,7 @@ def bench_corpus() -> Path:
     another harness's verdict is a harness with a bug, and the cure that
     outlives the specific mistake is a clone each.
     """
-    home = Path(os.environ.get("WSINDEX_BENCH_DIR", Path.home() / ".cache" / "wsindex-bench"))
+    home = Path(os.environ.get("THULR_BENCH_DIR", Path.home() / ".cache" / "thulr-bench"))
     corpus = home / REPO_URL.rstrip("/").rsplit("/", 1)[-1]
     if not corpus.exists():
         print(f"  cloning corpus with history into {corpus} (once) ...", file=sys.stderr)

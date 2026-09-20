@@ -73,7 +73,7 @@ Two things the spike taught that the plan had not anticipated:
 **"Dangling" is meaningless without a declared scope.** All eleven
 false alarms are real environment variables that are simply not in
 `docker-compose.yml`: `AWS_*` come from the ambient environment,
-`WSINDEX_*` are the tool's own knobs. Reading a variable with a default
+`THULR_*` are the tool's own knobs. Reading a variable with a default
 is not a broken link, it is an optional input. The bug shape that
 matters is narrower: *a value that claims to point at something this
 workspace itself publishes.* An 85% false-alarm rate is not a tuning
@@ -269,7 +269,7 @@ What we owe:
   imports) is when the tree gets threaded through.
 
 - Ambiguous code → code edges must be labelled ambiguous wherever they
-  surface. `wsindex refs` (step 28) showing a 50/50 guess as a fact
+  surface. `thulr refs` (step 28) showing a 50/50 guess as a fact
   would be worse than showing nothing.
 
 What we gain:
@@ -278,7 +278,7 @@ What we gain:
   Dangling links are the feature, not an error state: they are the only
   automatic evidence that code and configuration have drifted apart.
 - "Why is this like this" gets an answer path — definition, blame,
-  commit message — which is what `wsindex why` (step 28) is for.
+  commit message — which is what `thulr why` (step 28) is for.
 - Links stay cheap enough to keep: one visitor over parses that already
   happened, in a store that costs a file.
 

@@ -19,13 +19,13 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.links import Link, LinkKind, LinkStore
+from thulr.links import Link, LinkKind, LinkStore
 
-DSN_ENV = "WSINDEX_TEST_POSTGRES_DSN"
+DSN_ENV = "THULR_TEST_POSTGRES_DSN"
 """Where a test Postgres is named. Defaults to what `docker compose`
 brings up, so nobody has to set anything to run them."""
 
-DEFAULT_DSN = "postgresql://wsindex:wsindex@localhost:5432/wsindex"
+DEFAULT_DSN = "postgresql://thulr:thulr@localhost:5432/thulr"
 
 
 def postgres_dsn() -> str:
@@ -62,7 +62,7 @@ def postgres_store() -> Iterator[LinkStore]:
     # A fresh table per test, and an empty one afterwards. Unlike a
     # tmp_path the database outlives the run, so isolation has to be
     # asked for at both ends — rows left behind turned up in a manual
-    # `wsindex refs` half an hour later and read as real links.
+    # `thulr refs` half an hour later and read as real links.
     _reset()
     store = LinkStore.postgres(postgres_dsn())
     try:

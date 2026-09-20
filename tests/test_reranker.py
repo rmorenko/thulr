@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from wsindex.rank.reranker import CrossEncoderReranker, FakeReranker
+from thulr.rank.reranker import CrossEncoderReranker, FakeReranker
 
 
 def test_fake_is_deterministic() -> None:
@@ -66,7 +66,7 @@ def test_a_large_candidate_set_is_split_across_requests(monkeypatch: pytest.Monk
     search rather than slowing it — observed at 793 079 tokens against a
     limit of 600 000.
     """
-    from wsindex.rank import remote
+    from thulr.rank import remote
 
     sent: list[int] = []
 
@@ -89,7 +89,7 @@ def test_one_oversized_candidate_still_goes(monkeypatch: pytest.MonkeyPatch) -> 
     """Alone in its request rather than dropped: truncating is the
     provider's business, and silently losing a candidate the funnel chose
     is a worse answer than a truncated one."""
-    from wsindex.rank import remote
+    from thulr.rank import remote
 
     sent: list[int] = []
 
@@ -115,7 +115,7 @@ def test_a_server_that_hangs_up_is_retried(monkeypatch: pytest.MonkeyPatch) -> N
     """
     import httpx
 
-    from wsindex.rank import remote
+    from thulr.rank import remote
 
     calls = {"n": 0}
 
@@ -128,8 +128,8 @@ def test_a_server_that_hangs_up_is_retried(monkeypatch: pytest.MonkeyPatch) -> N
             json=Mock(return_value={"data": [{"index": 0, "relevance_score": 0.7}]}),
         )
 
-    monkeypatch.setattr("wsindex.rank.remote.httpx.post", flaky)
-    monkeypatch.setattr("wsindex.rank.remote.time.sleep", lambda _: None)
+    monkeypatch.setattr("thulr.rank.remote.httpx.post", flaky)
+    monkeypatch.setattr("thulr.rank.remote.time.sleep", lambda _: None)
     monkeypatch.setenv("T", "secret")
     ranker = remote.RemoteReranker(model="m", url="http://x", token_env="T")
 

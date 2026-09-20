@@ -1,4 +1,4 @@
-# wsindex, for whoever decides whether a team adopts it
+# thulr, for whoever decides whether a team adopts it
 
 ## What it is, in one paragraph
 
@@ -11,9 +11,9 @@ it runs entirely on the developer's own machine.
 
 **There is a class of question about unfamiliar code that `grep` answers
 zero of, and it is roughly half of what a developer joining a codebase
-asks.** 42 such questions were written by a tester before wsindex was
+asks.** 42 such questions were written by a tester before thulr was
 allowed to run, with every word of four letters or more mechanically
-checked absent from the answer file. `ripgrep` found none. wsindex finds
+checked absent from the answer file. `ripgrep` found none. thulr finds
 21 of them — **with a hosted embedder**. With the model that ships, 1.
 
 So the two things a team wants from this tool pull against each other,
@@ -57,23 +57,23 @@ or withdraw them.
 **One question across every repository at once.** Teams that split code,
 docs, infrastructure and SDKs across repositories rely on somebody
 knowing which repo holds what. On 14 questions whose answer sits in a
-different repository from the one you would open first, wsindex found 12
+different repository from the one you would open first, thulr found 12
 and `ripgrep` 6.
 
 **Search that keeps working as the codebase grows.** On the largest
-codebase tested — DBeaver, 11 786 files — wsindex put the right file in
+codebase tested — DBeaver, 11 786 files — thulr put the right file in
 the top three for every identifier question asked. `ripgrep` found one in
 four and returned over twenty files for two more. The value is not that
 it beats grep on a small repo; it is that it keeps working when grep
 stops being usable.
 
-**A duplication report that groups by cause.** `wsindex dupes` finds the
+**A duplication report that groups by cause.** `thulr dupes` finds the
 same code in two places and collapses the result by the directories
 involved, so two copies of a vendored library read as one fact rather
 than three hundred findings. It found real duplication in 47 of the
 repositories tested.
 
-**Onboarding evidence.** `wsindex domains` reads what a repository is
+**Onboarding evidence.** `thulr domains` reads what a repository is
 made of and which files keep changing together across package
 boundaries — the pairs where two modules are coupled but not about the
 same subject are the ones worth a conversation.
@@ -148,7 +148,7 @@ with a hosted embedder and reranker. The limit is the model, measured
 four ways: no available local model beats the one that ships, and the two
 trained on code did worse. `[rewrite]` narrows the gap without sending
 code, at the price of a model call per search, but does not close it. This is a configuration away, not a rewrite —
-but it is not what `wsindex init` gives you.
+but it is not what `thulr init` gives you.
 
 **It is not finished software, though it is less unfinished than the
 field trial found it.** Three of the twenty trial workspaces could not be
@@ -161,7 +161,7 @@ success. All of that is fixed and tested.
 Thirty-three languages and formats are claimed, including the three that
 used to be the reason to walk away — Scala, Swift and Objective-C — plus
 Elixir, SQL, HCL/Terraform, shell and the config formats. Anything not
-claimed is skipped rather than indexed as text, and `wsindex explain`
+claimed is skipped rather than indexed as text, and `thulr explain`
 on any source file says which it is.
 
 ## Where it fits, and where it does not

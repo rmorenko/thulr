@@ -15,8 +15,8 @@ import re
 import pytest
 from rich.console import Console
 
-from wsindex.model import Hit
-from wsindex.ui import PLAIN_ENV, plain_hit, progress, render_hits, wants_rich
+from thulr.model import Hit
+from thulr.ui import PLAIN_ENV, plain_hit, progress, render_hits, wants_rich
 
 
 def hit(score: float = 0.5, **overrides: object) -> Hit:
@@ -54,7 +54,7 @@ def rendered(*, terminal: bool, hits: list[Hit] | None = None) -> str:
 
 
 def test_a_pipe_gets_the_greppable_line(monkeypatch: pytest.MonkeyPatch) -> None:
-    # `wsindex search x | grep foo` has to keep working, and a table
+    # `thulr search x | grep foo` has to keep working, and a table
     # drawn with box characters is not something to grep.
     monkeypatch.delenv(PLAIN_ENV, raising=False)
     monkeypatch.delenv("NO_COLOR", raising=False)

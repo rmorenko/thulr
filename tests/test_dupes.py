@@ -15,11 +15,11 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config, Repository
-from wsindex.dupes import COMMON_SHINGLE, MIN_TOKENS, SHINGLE, _pairs, find, fingerprint
-from wsindex.embed import FakeEmbedder
-from wsindex.pipeline import Pipeline
-from wsindex.store import LanceDBStore
+from thulr.config import Config, Repository
+from thulr.dupes import COMMON_SHINGLE, MIN_TOKENS, SHINGLE, _pairs, find, fingerprint
+from thulr.embed import FakeEmbedder
+from thulr.pipeline import Pipeline
+from thulr.store import LanceDBStore
 
 WORDS = " ".join(f"name_{n} value_{n} result_{n}" for n in range(40))
 
@@ -343,7 +343,7 @@ def test_a_shared_licence_header_is_not_duplication() -> None:
     more than forty chunks, and a header repeated in thirty files is
     under that bar and identical.
     """
-    from wsindex.dupes import fingerprint
+    from thulr.dupes import fingerprint
 
     header = "\n".join(
         [f"// Copyright 2015 The Project Authors line {n}" for n in range(20)]
@@ -358,6 +358,6 @@ def test_a_shared_licence_header_is_not_duplication() -> None:
 def test_a_chunk_that_is_only_a_header_fingerprints_as_nothing() -> None:
     # It removes itself, the way a chunk too short to matter already
     # does — no separate check anywhere else.
-    from wsindex.dupes import fingerprint
+    from thulr.dupes import fingerprint
 
     assert not fingerprint("\n".join(f"// a licence line {n}" for n in range(80)))

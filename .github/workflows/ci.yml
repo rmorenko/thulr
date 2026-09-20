@@ -47,7 +47,7 @@ jobs:
         run: uv run mypy src
 
       - name: Cognitive complexity (complexipy, max 15 per function)
-        run: uv run complexipy src/wsindex
+        run: uv run complexipy src/thulr
 
       - name: Dependency hygiene (deptry)
         run: uv run deptry .

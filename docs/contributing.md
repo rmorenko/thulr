@@ -1,6 +1,6 @@
-# Contributing to WSIndex
+# Contributing to Thulr
 
-Thanks for your interest! WSIndex is a learning-first project; contributions and
+Thanks for your interest! Thulr is a learning-first project; contributions and
 experiments are welcome.
 
 ## Development setup
@@ -20,7 +20,7 @@ Tasks are defined with [poethepoet](https://poethepoet.natn.io/) in
 ```bash
 uv run poe check   # ruff (lint) + mypy (types) + pytest — run this before pushing
 uv run poe fmt     # auto-format with ruff
-uv run poe run     # run the wsindex CLI
+uv run poe run     # run the thulr CLI
 ```
 
 Run everything the pre-commit hooks would run:
@@ -40,7 +40,7 @@ uv run poe relevance -- --check scripts/relevance_baseline.json   # fail on a dr
 ```
 
 Sixty questions written by testers who explored a workspace with reading
-and grep only and never ran wsindex, against repositories pinned to the
+and grep only and never ran thulr, against repositories pinned to the
 sha they were written at, with a `ripgrep` control on every one. Six of
 the twelve per workspace describe a behaviour using no word that appears
 in the answer file.

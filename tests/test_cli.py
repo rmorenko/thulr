@@ -18,14 +18,14 @@ import pytest
 import typer.main
 from typer.testing import CliRunner
 
-import wsindex.pipeline
+import thulr.pipeline
 from helpers import as_indexed
-from wsindex.cli import DEBUG_ENV, app, run
-from wsindex.cli.interfaces import is_loopback
-from wsindex.config import Config, Provider
-from wsindex.connectors import BUILTIN, Connector, Document, DocumentNotFound
-from wsindex.embed import FakeEmbedder
-from wsindex.paths import CONFIG_FILE, ENV_OVERRIDE
+from thulr.cli import DEBUG_ENV, app, run
+from thulr.cli.interfaces import is_loopback
+from thulr.config import Config, Provider
+from thulr.connectors import BUILTIN, Connector, Document, DocumentNotFound
+from thulr.embed import FakeEmbedder
+from thulr.paths import CONFIG_FILE, ENV_OVERRIDE
 
 runner = CliRunner()
 
@@ -36,7 +36,7 @@ PY_TEXT = "def f():\n    return 1"
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Empty CWD of its own for every test + a small git repo to register.
 
-    Drops the `$WSINDEX_CONFIG` guard the autouse fixture installs: these
+    Drops the `$THULR_CONFIG` guard the autouse fixture installs: these
     tests drive the real four-mode resolver, and tmp_path being the CWD is
     what keeps it away from the developer's own config.
     """
@@ -93,7 +93,7 @@ def test_commands_needing_a_config_file_fail_without_one(
     for cmd in (["index"], ["search", "x"], ["add-repo", "r", "."]):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 1, cmd
-        assert "wsindex init" in result.output
+        assert "thulr init" in result.output
 
 
 def test_status_without_config_reports_defaults(
@@ -104,7 +104,7 @@ def test_status_without_config_reports_defaults(
     monkeypatch.setenv(ENV_OVERRIDE, str(workspace / "absent.toml"))
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
-    assert "warning: no wsindex config found" in result.output
+    assert "warning: no thulr config found" in result.output
     assert "built-in defaults" in result.output
     assert not (workspace / CONFIG_FILE).exists()
 
@@ -199,21 +199,21 @@ def test_st_provider_builds_st_embedder(workspace: Path, monkeypatch: pytest.Mon
             captured["trust_remote_code"] = trust_remote_code
 
     # Patch where the name is looked up: cli.py imported its own reference.
-    monkeypatch.setattr("wsindex.cli.composition.SentenceTransformerEmbedder", StubST)
+    monkeypatch.setattr("thulr.cli.composition.SentenceTransformerEmbedder", StubST)
     runner.invoke(app, ["init", "ws"])  # default provider is sentence-transformers
     runner.invoke(app, ["add-repo", "repo1", str(workspace / "repo1")])
     result = runner.invoke(app, ["index"])
     assert result.exit_code == 0
     # Both come from the composition root: the model from the config, the
-    # cache dir from `wsindex.paths` — a shared location, not a config
+    # cache dir from `thulr.paths` — a shared location, not a config
     # field. The embedder itself knows about neither.
     assert captured["model"] == Config().model
-    # cli passes an explicit models subdir under $XDG_CACHE_HOME/wsindex/
-    # so the wsindex-owned cache is namespaced (see ADR-8 amendment).
+    # cli passes an explicit models subdir under $XDG_CACHE_HOME/thulr/
+    # so the thulr-owned cache is namespaced (see ADR-8 amendment).
     cache_folder = captured["cache_folder"]
     assert isinstance(cache_folder, Path)
     assert cache_folder.name == "models"
-    assert cache_folder.parent.name == "wsindex"
+    assert cache_folder.parent.name == "thulr"
 
 
 def test_the_workspace_width_reaches_the_embedder(
@@ -239,7 +239,7 @@ def test_the_workspace_width_reaches_the_embedder(
             super().__init__(dim=dim or 384)
             captured["dim"] = dim
 
-    monkeypatch.setattr("wsindex.cli.composition.SentenceTransformerEmbedder", StubST)
+    monkeypatch.setattr("thulr.cli.composition.SentenceTransformerEmbedder", StubST)
     runner.invoke(app, ["init", "ws"])
     runner.invoke(app, ["add-repo", "repo1", str(workspace / "repo1")])
     result = runner.invoke(app, ["index"])
@@ -296,7 +296,7 @@ def test_search_path_glob_filters(workspace: Path) -> None:
             assert "src/" in line, f"path filter failed to constrain: {line!r}"
 
 
-# --- wsindex compact ------------------------------------------------------
+# --- thulr compact ------------------------------------------------------
 
 
 def test_compact_reports_reclaimed_space(workspace: Path) -> None:
@@ -360,7 +360,7 @@ def test_compact_says_so_when_size_cannot_be_measured(
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     runner.invoke(app, ["add-repo", "repo1", str(workspace / "repo1")])
     runner.invoke(app, ["index"])
-    monkeypatch.setattr("wsindex.store.lancedb.LanceDBStore._on_disk_bytes", lambda self: None)
+    monkeypatch.setattr("thulr.store.lancedb.LanceDBStore._on_disk_bytes", lambda self: None)
 
     result = runner.invoke(app, ["compact"])
 
@@ -369,7 +369,7 @@ def test_compact_says_so_when_size_cannot_be_measured(
     assert "reclaimed" not in result.output
 
 
-# --- wsindex sync ---------------------------------------------------------
+# --- thulr sync ---------------------------------------------------------
 
 
 @pytest.fixture
@@ -505,7 +505,7 @@ def test_a_malformed_config_is_an_error_not_a_traceback(workspace: Path) -> None
 
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 1
-    assert "cannot read the wsindex config" in result.output
+    assert "cannot read the thulr config" in result.output
     assert "Traceback" not in result.output
 
 
@@ -516,14 +516,14 @@ def test_a_config_missing_a_required_section_is_an_error_too(workspace: Path) ->
 
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 1
-    assert "cannot read the wsindex config" in result.output
+    assert "cannot read the thulr config" in result.output
 
 
-# --- wsindex fetch --------------------------------------------------------
+# --- thulr fetch --------------------------------------------------------
 
 
 def test_fetch_prints_a_document(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from wsindex.connectors import Document
+    from thulr.connectors import Document
 
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     config = workspace / CONFIG_FILE
@@ -531,7 +531,7 @@ def test_fetch_prints_a_document(workspace: Path, monkeypatch: pytest.MonkeyPatc
         config.read_text() + '\n[[connectors]]\ntype = "generic-http"\nurl_pattern = "https://*"\n'
     )
     monkeypatch.setattr(
-        "wsindex.connectors.http.GenericHttpConnector.fetch",
+        "thulr.connectors.http.GenericHttpConnector.fetch",
         lambda self, url: Document(
             url=url, title="Guide", text="body text", metadata={"content_type": "text/html"}
         ),
@@ -554,17 +554,17 @@ def test_fetch_says_when_nothing_claims_the_url(workspace: Path) -> None:
 def console_script(
     argv: list[str], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> tuple[int, str]:
-    """Run a command the way the installed `wsindex` script does.
+    """Run a command the way the installed `thulr` script does.
 
     `CliRunner` invokes the typer app; the console script invokes
-    `wsindex.cli.run`, which wraps it and turns a library RuntimeError
+    `thulr.cli.run`, which wraps it and turns a library RuntimeError
     into one line. Commands that rely on that wrapper — rather than
     catching for themselves — are only really tested from here.
 
     Returns:
         The exit code and everything written to stdout and stderr.
     """
-    monkeypatch.setattr(sys, "argv", ["wsindex", *argv])
+    monkeypatch.setattr(sys, "argv", ["thulr", *argv])
     code = 0
     try:
         run()
@@ -581,7 +581,7 @@ def test_fetch_reports_a_connector_error(
     # ConnectorError is a RuntimeError and the entry point already turns
     # those into a message. Testing it through CliRunner would prove the
     # handler that is no longer there.
-    from wsindex.connectors import DocumentNotFound
+    from thulr.connectors import DocumentNotFound
 
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     config = workspace / CONFIG_FILE
@@ -592,7 +592,7 @@ def test_fetch_reports_a_connector_error(
     def missing(self: object, url: str) -> None:
         raise DocumentNotFound(f"{url} is not there, or not visible")
 
-    monkeypatch.setattr("wsindex.connectors.http.GenericHttpConnector.fetch", missing)
+    monkeypatch.setattr("thulr.connectors.http.GenericHttpConnector.fetch", missing)
     code, output = console_script(["fetch", "https://example.invalid/gone"], monkeypatch, capsys)
 
     assert code == 1
@@ -605,7 +605,7 @@ def test_fetch_needs_a_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv(ENV_OVERRIDE, str(tmp_path / "absent.toml"))
     result = runner.invoke(app, ["fetch", "https://example.invalid/a"])
     assert result.exit_code == 1
-    assert "wsindex init" in result.output
+    assert "thulr init" in result.output
 
 
 # --- snapshot repos: sync materializes, index reads them unchanged --------
@@ -863,7 +863,7 @@ def test_indexing_leaves_a_private_index_directory(workspace: Path) -> None:
 
     runner.invoke(app, ["index"])
 
-    assert stat.S_IMODE((workspace / ".wsindex").stat().st_mode) == 0o700
+    assert stat.S_IMODE((workspace / ".thulr").stat().st_mode) == 0o700
 
 
 # --- saying what happened -------------------------------------------------
@@ -912,7 +912,7 @@ def test_add_repo_stays_quiet_when_sync_will_create_the_path(workspace: Path) ->
 
 def test_status_says_whether_the_index_has_run(workspace: Path) -> None:
     # It used to recite the config back, every line of it already visible
-    # in wsindex.toml, and say nothing about the index itself.
+    # in thulr.toml, and say nothing about the index itself.
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     runner.invoke(app, ["add-repo", "r", str(workspace / "repo1")])
 
@@ -947,7 +947,7 @@ def test_every_command_is_documented() -> None:
     added in one review and documented by hand in the same breath, which
     is exactly the moment the two can part company.
     """
-    documented = set(re.findall(r"wsindex ([a-z][a-z-]+)", Path("README.md").read_text()))
+    documented = set(re.findall(r"thulr ([a-z][a-z-]+)", Path("README.md").read_text()))
     # Through click rather than `app.registered_commands`: this is the
     # mapping the CLI actually dispatches on, already keyed by the name a
     # reader types (`add-repo`, not `add_repo`).
@@ -969,7 +969,7 @@ def test_debug_lets_the_traceback_through(
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     runner.invoke(app, ["add-repo", "r", str(workspace / "repo1")])
     monkeypatch.setattr(
-        wsindex.pipeline.Pipeline,
+        thulr.pipeline.Pipeline,
         "index",
         lambda self, progress=None: (_ for _ in ()).throw(RuntimeError("deep failure")),
     )
@@ -985,7 +985,7 @@ def test_without_debug_it_is_one_line(
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     runner.invoke(app, ["add-repo", "r", str(workspace / "repo1")])
     monkeypatch.setattr(
-        wsindex.pipeline.Pipeline,
+        thulr.pipeline.Pipeline,
         "index",
         lambda self, progress=None: (_ for _ in ()).throw(RuntimeError("deep failure")),
     )
@@ -1000,8 +1000,8 @@ def test_without_debug_it_is_one_line(
 
 def test_debug_puts_blame_back_in_one_thread(monkeypatch: pytest.MonkeyPatch) -> None:
     # A breakpoint in a worker thread is a breakpoint in the wrong place.
-    from wsindex.cli import _open_the_door
-    from wsindex.ingest import commits
+    from thulr.cli import _open_the_door
+    from thulr.ingest import commits
 
     monkeypatch.setattr(commits, "BLAME_WORKERS", 8)
 
@@ -1079,14 +1079,14 @@ def test_postgres_with_an_unset_variable_refuses(
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     config = workspace / CONFIG_FILE
     config.write_text(
-        config.read_text() + '\n[links]\nbackend = "postgres"\ndsn_env = "WSINDEX_NO_SUCH_DSN"\n'
+        config.read_text() + '\n[links]\nbackend = "postgres"\ndsn_env = "THULR_NO_SUCH_DSN"\n'
     )
-    monkeypatch.delenv("WSINDEX_NO_SUCH_DSN", raising=False)
+    monkeypatch.delenv("THULR_NO_SUCH_DSN", raising=False)
 
     result = runner.invoke(app, ["refs", "8080"])
 
     assert result.exit_code == 1
-    assert "$WSINDEX_NO_SUCH_DSN is not set" in result.output
+    assert "$THULR_NO_SUCH_DSN is not set" in result.output
 
 
 def test_an_unreachable_links_database_is_a_sentence(
@@ -1095,9 +1095,9 @@ def test_an_unreachable_links_database_is_a_sentence(
     runner.invoke(app, ["init", "ws", "--provider", "fake"])
     config = workspace / CONFIG_FILE
     config.write_text(
-        config.read_text() + '\n[links]\nbackend = "postgres"\ndsn_env = "WSINDEX_DEAD_DSN"\n'
+        config.read_text() + '\n[links]\nbackend = "postgres"\ndsn_env = "THULR_DEAD_DSN"\n'
     )
-    monkeypatch.setenv("WSINDEX_DEAD_DSN", "postgresql://nobody@127.0.0.1:1/none")
+    monkeypatch.setenv("THULR_DEAD_DSN", "postgresql://nobody@127.0.0.1:1/none")
 
     result = runner.invoke(app, ["refs", "8080"])
 
@@ -1166,7 +1166,7 @@ def test_every_module_is_named_in_the_architecture_document() -> None:
     except the map. A generated list would read like one; what this needs
     is to fail when the two part company.
     """
-    source = Path("src/wsindex")
+    source = Path("src/thulr")
     shipped = {
         path.name
         for path in source.iterdir()
@@ -1209,10 +1209,10 @@ def test_an_asymmetric_model_gets_its_query_prefix_from_the_config(
             captured["query_prefix"] = query_prefix
             captured["trust_remote_code"] = trust_remote_code
 
-    monkeypatch.setattr("wsindex.cli.composition.SentenceTransformerEmbedder", StubST)
+    monkeypatch.setattr("thulr.cli.composition.SentenceTransformerEmbedder", StubST)
     runner.invoke(app, ["init", "ws"])
     runner.invoke(app, ["add-repo", "repo1", str(workspace / "repo1")])
-    config_file = workspace / "wsindex.toml"
+    config_file = workspace / "thulr.toml"
     config_file.write_text(
         config_file.read_text().replace(
             'provider = "sentence-transformers"',
@@ -1249,7 +1249,7 @@ def test_a_workspace_that_says_nothing_gets_the_symmetric_default(
             captured["query_prefix"] = query_prefix
             captured["trust_remote_code"] = trust_remote_code
 
-    monkeypatch.setattr("wsindex.cli.composition.SentenceTransformerEmbedder", StubST)
+    monkeypatch.setattr("thulr.cli.composition.SentenceTransformerEmbedder", StubST)
     runner.invoke(app, ["init", "ws"])
     runner.invoke(app, ["add-repo", "repo1", str(workspace / "repo1")])
 
@@ -1330,6 +1330,6 @@ def test_the_search_default_is_the_one_that_was_measured() -> None:
     Pinned because a default nobody can see is the easiest thing in a
     codebase to change back by accident.
     """
-    from wsindex.cli.searching import DEFAULT_TOP
+    from thulr.cli.searching import DEFAULT_TOP
 
     assert DEFAULT_TOP == 20

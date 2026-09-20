@@ -18,17 +18,17 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.ingest.ast.core import Span, def_span
-from wsindex.ingest.chunker import chunk_file
-from wsindex.ingest.languages import (
+from thulr.ingest.ast.core import Span, def_span
+from thulr.ingest.chunker import chunk_file
+from thulr.ingest.languages import (
     BUILTIN_LANGUAGES,
     REGISTRY,
     GrammarSpec,
     LanguageRegistry,
     LanguageSpec,
 )
-from wsindex.ingest.walker import inspect_file
-from wsindex.model import Kind, SourceFile
+from thulr.ingest.walker import inspect_file
+from thulr.model import Kind, SourceFile
 
 
 def fake_spans(root: object, lines: list[str], covered: list[bool]) -> list[Span]:

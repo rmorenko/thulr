@@ -1,7 +1,7 @@
 """Questions asked by people who had never heard of this tool.
 
 The 84 questions in this corpus were written by the person who built
-wsindex, after reading the repositories. Every guard around them — the
+thulr, after reading the repositories. Every guard around them — the
 substring leak rule, freezing them before a run, the ripgrep control —
 narrows that problem and none of them removes it. A sceptic can discard
 the whole result in one sentence, and would be right to.
@@ -57,7 +57,7 @@ from typing import Any
 CORPUS = Path(__file__).parent / "acceptance_corpus"
 OUT = CORPUS / "harvested"
 
-CACHE = Path(os.environ.get("WSINDEX_RELEVANCE_DIR", Path.home() / ".cache" / "wsindex-relevance"))
+CACHE = Path(os.environ.get("THULR_RELEVANCE_DIR", Path.home() / ".cache" / "thulr-relevance"))
 """Where `relevance.py` materialises the pinned repositories. The same
 place on purpose: this reads the trees it has already checked out at the
 pinned commit, which is how "does this file still exist at the pin" is

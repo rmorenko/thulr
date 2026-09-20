@@ -9,7 +9,7 @@ Each object here is one thing a plugin author can get wrong, plus the
 one they can get right.
 """
 
-from wsindex.connectors import Connector, Document
+from thulr.connectors import Connector, Document
 
 
 class FixtureConnector(Connector):
@@ -37,6 +37,6 @@ class Unrelated:
     """Not a Connector at all — the commonest mistyped entry point."""
 
 
-NOT_A_CONNECTOR = "wsindex.connectors:Connector"
+NOT_A_CONNECTOR = "thulr.connectors:Connector"
 """A string where a class belongs: what an author writes when they think
 the entry point value is repeated in the module."""

@@ -18,9 +18,9 @@ from typing import Any
 import pytest
 from rich.console import Console
 
-from wsindex.config import Config, Repository
-from wsindex.model import Hit, Kind
-from wsindex.shell import ShellError, open_in_editor, parse, run
+from thulr.config import Config, Repository
+from thulr.model import Hit, Kind
+from thulr.shell import ShellError, open_in_editor, parse, run
 
 
 def hit(**overrides: object) -> Hit:
@@ -155,7 +155,7 @@ def drive(
     """Run the loop over a script and return what it printed."""
     stream = io.StringIO()
     monkeypatch.setattr(
-        "wsindex.shell.console",
+        "thulr.shell.console",
         lambda **_: Console(file=stream, force_terminal=False, width=100, no_color=True),
     )
     # Patched where `run` looks it up — inside the function, so the
@@ -265,7 +265,7 @@ def test_ctrl_c_abandons_the_line_and_ctrl_d_ends_the_session(
     session = _Interrupting()
     stream = io.StringIO()
     monkeypatch.setattr(
-        "wsindex.shell.console",
+        "thulr.shell.console",
         lambda **_: Console(file=stream, force_terminal=False, width=100, no_color=True),
     )
     monkeypatch.setattr("prompt_toolkit.PromptSession", lambda **_: session)
@@ -290,7 +290,7 @@ def test_an_unknown_repo_is_a_sentence_not_a_crash(
 ) -> None:
     stream = io.StringIO()
     monkeypatch.setattr(
-        "wsindex.shell.console",
+        "thulr.shell.console",
         lambda **_: Console(file=stream, force_terminal=False, width=100, no_color=True),
     )
     monkeypatch.setattr(

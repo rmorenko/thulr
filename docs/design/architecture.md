@@ -1,4 +1,4 @@
-# WSIndex — Architecture
+# Thulr — Architecture
 
 > **A map, not a specification.** This file holds the two things that do
 > not belong anywhere else: the quality attributes that shape every
@@ -28,12 +28,12 @@
 | Why are links not in the vector store?        | `../adr/adr-011-links-backend.md`                           |
 | Where is the line between library and server? | `../adr/adr-010-library-server-boundary.md`                 |
 | Why does indexing start a child process?      | `../adr/adr-012-spawning-processes.md`                      |
-| What can `wsindex.toml` say?                  | `wsindex.schema.json` (generated) and the README            |
+| What can `thulr.toml` say?                    | `thulr.schema.json` (generated) and the README              |
 | Why is this line of code like that?           | the docstring above it — 45% of `src/` is reasoning         |
 
 ## Goal
 
-**WSIndex** indexes a developer's workspace — several git repositories at
+**Thulr** indexes a developer's workspace — several git repositories at
 once — and answers natural-language questions with exact `file:line`
 locations. Code and configs are chunked by their syntax trees,
 documentation by headers; every chunk is embedded and searched by

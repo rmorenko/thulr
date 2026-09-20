@@ -108,7 +108,7 @@ def test_a_baseline_from_another_model_is_not_a_baseline() -> None:
 
 
 def test_an_unreachable_question_still_counts_as_not_found() -> None:
-    # A file wsindex never indexed cannot be retrieved, and the baseline
+    # A file thulr never indexed cannot be retrieved, and the baseline
     # must keep seeing that as zero — otherwise a coverage regression
     # would hide behind "well, it was unreachable anyway". Reachability
     # is reported beside the score, not subtracted from it.
@@ -118,7 +118,7 @@ def test_an_unreachable_question_still_counts_as_not_found() -> None:
 
 
 def _key(monkeypatch: pytest.MonkeyPatch) -> str:
-    from wsindex.config import Config
+    from thulr.config import Config
 
     Config.reset()
     return vector_key("org", [{"id": "r", "sha": "abc"}], Config.default("keytest"))
@@ -134,7 +134,7 @@ def test_the_index_key_notices_a_change_to_chunking(
     when it does not: the numbers still come out, they are just about the
     previous chunker.
     """
-    import wsindex.ingest.chunker as chunker
+    import thulr.ingest.chunker as chunker
 
     before = _key(monkeypatch)
     source = Path(chunker.__file__)
@@ -154,7 +154,7 @@ def test_the_index_key_ignores_a_change_to_ranking(monkeypatch: pytest.MonkeyPat
     `pipeline.py` re-embedded the corpus, a hosted run would cost fifty
     minutes and real money per idea, and the ideas would go unmeasured.
     """
-    import wsindex.pipeline as pipeline
+    import thulr.pipeline as pipeline
 
     before = _key(monkeypatch)
     source = Path(pipeline.__file__)
@@ -173,5 +173,5 @@ def test_a_probe_can_declare_what_the_source_cannot_show(
     file changes and nothing above would notice. The tag is how such a
     probe keeps its two arms from sharing one index."""
     before = _key(monkeypatch)
-    monkeypatch.setenv("WSINDEX_INDEX_TAG", "windows")
+    monkeypatch.setenv("THULR_INDEX_TAG", "windows")
     assert _key(monkeypatch) != before

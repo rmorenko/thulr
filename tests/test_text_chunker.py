@@ -2,8 +2,8 @@ from textwrap import dedent
 
 import pytest
 
-from wsindex.ingest.text_chunker import chunk_markdown, chunk_plain, chunk_text
-from wsindex.model import Kind, SourceFile
+from thulr.ingest.text_chunker import chunk_markdown, chunk_plain, chunk_text
+from thulr.model import Kind, SourceFile
 
 REPO = "test"
 PATH = "/path/to/file"

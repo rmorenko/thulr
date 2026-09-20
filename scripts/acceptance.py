@@ -22,12 +22,12 @@ Usage:
     uv run python scripts/acceptance.py        # or: uv run poe acceptance
 
 Environment:
-    WSINDEX_E2E_REPO   corpus repo (default: tensorus/tensorus)
-    WSINDEX_E2E_DIR    clone cache dir
-    WSINDEX_ACCEPT_S3  set to "0" to skip the s3 (MinIO) run
-    WSINDEX_S3_URI     s3 uri prefix (default: s3://wsindex/accept)
+    THULR_E2E_REPO   corpus repo (default: tensorus/tensorus)
+    THULR_E2E_DIR    clone cache dir
+    THULR_ACCEPT_S3  set to "0" to skip the s3 (MinIO) run
+    THULR_S3_URI     s3 uri prefix (default: s3://thulr/accept)
 
-The s3 run assumes the compose MinIO (localhost:9000, bucket `wsindex`);
+The s3 run assumes the compose MinIO (localhost:9000, bucket `thulr`);
 credentials default to minioadmin and can be overridden via AWS_* vars.
 """
 
@@ -41,14 +41,14 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from wsindex.config import Config, Repository
-from wsindex.embed import SentenceTransformerEmbedder
-from wsindex.model import Hit
-from wsindex.pipeline import IndexReport, Pipeline
-from wsindex.rank.reranker import CrossEncoderReranker, Reranker
-from wsindex.store import LanceDBStore, VectorStore
+from thulr.config import Config, Repository
+from thulr.embed import SentenceTransformerEmbedder
+from thulr.model import Hit
+from thulr.pipeline import IndexReport, Pipeline
+from thulr.rank.reranker import CrossEncoderReranker, Reranker
+from thulr.store import LanceDBStore, VectorStore
 
-REPO_URL = os.environ.get("WSINDEX_E2E_REPO", "https://github.com/tensorus/tensorus")
+REPO_URL = os.environ.get("THULR_E2E_REPO", "https://github.com/tensorus/tensorus")
 K = 5
 
 # Fixed acceptance criteria: (query, acceptable path fragments in top-K).
@@ -134,12 +134,12 @@ def ensure_corpus() -> Path:
     An existing shallow clone is deepened in place rather than re-cloned:
     somebody's cache should not have to be deleted for this to take.
     """
-    override = os.environ.get("WSINDEX_E2E_DIR")
+    override = os.environ.get("THULR_E2E_DIR")
     if override:
         corpus = Path(override).expanduser()
     else:
         name = REPO_URL.rstrip("/").rsplit("/", 1)[-1]
-        corpus = Path.home() / ".cache" / "wsindex-e2e" / name
+        corpus = Path.home() / ".cache" / "thulr-e2e" / name
     if not corpus.exists():
         subprocess.run(["git", "clone", "-q", REPO_URL, str(corpus)], check=True)
         return corpus
@@ -241,9 +241,9 @@ def measure_incremental(
         _git(
             corpus,
             "-c",
-            "user.name=wsindex acceptance",
+            "user.name=thulr acceptance",
             "-c",
-            "user.email=acceptance@wsindex.invalid",
+            "user.email=acceptance@thulr.invalid",
             "commit",
             "-qm",
             "acceptance probe",
@@ -268,7 +268,7 @@ def render(
     incremental: IncrementalRuns | None = None,
 ) -> str:
     lines = [
-        "# WSIndex MVP acceptance report",
+        "# Thulr MVP acceptance report",
         "",
         f"Corpus: `{REPO_URL}` (clone at `{corpus}`)",
         f"Criteria: {len(CRITERIA)} fixed queries, hit = expected fragment in top-{K} paths.",
@@ -345,7 +345,7 @@ def run_s3(corpus: Path, embedder: SentenceTransformerEmbedder, state_dir: Path)
     )
     os.environ.setdefault("AWS_ALLOW_HTTP", "true")
     os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
-    prefix = os.environ.get("WSINDEX_S3_URI", "s3://wsindex/accept")
+    prefix = os.environ.get("THULR_S3_URI", "s3://thulr/accept")
     uri = f"{prefix}_{uuid.uuid4().hex[:8]}"
     store = LanceDBStore(uri=uri, embedder=embedder)
     try:
@@ -373,7 +373,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         config = make_config(corpus, "corpus")
         state_root = Path(tmp) / "state"
-        store = LanceDBStore(uri=str(Path(tmp) / ".wsindex"), embedder=embedder)
+        store = LanceDBStore(uri=str(Path(tmp) / ".thulr"), embedder=embedder)
         # Each backend gets its own state dir: a second backend starting
         # from the first one's recorded commit would index nothing and
         # measure nothing.
@@ -382,25 +382,25 @@ def main() -> None:
 
         # Step 22: what a re-index costs once the corpus is already indexed.
         # Same store, same state the run above just recorded.
-        if os.environ.get("WSINDEX_ACCEPT_INCREMENTAL", "1") != "0":
+        if os.environ.get("THULR_ACCEPT_INCREMENTAL", "1") != "0":
             incremental = measure_incremental(
                 corpus, store, state_root / "local", local.index_seconds
             )
         else:
-            skipped.append("incremental measurement skipped: WSINDEX_ACCEPT_INCREMENTAL=0")
+            skipped.append("incremental measurement skipped: THULR_ACCEPT_INCREMENTAL=0")
 
         # Same corpus, same store — but with the cross-encoder reranker on top.
         # The cross-check delta shows how much re-rank moved ranks.
-        if os.environ.get("WSINDEX_ACCEPT_RERANK", "1") != "0":
+        if os.environ.get("THULR_ACCEPT_RERANK", "1") != "0":
             reranker = CrossEncoderReranker(model_name=config.rank_model)
             runs.append(
                 run_backend("local-reranked", store, state_root / "reranked", reranker=reranker)
             )
         else:
-            skipped.append("rerank run skipped: WSINDEX_ACCEPT_RERANK=0")
+            skipped.append("rerank run skipped: THULR_ACCEPT_RERANK=0")
 
-    if os.environ.get("WSINDEX_ACCEPT_S3", "1") == "0":
-        skipped.append("s3 run skipped: WSINDEX_ACCEPT_S3=0")
+    if os.environ.get("THULR_ACCEPT_S3", "1") == "0":
+        skipped.append("s3 run skipped: THULR_ACCEPT_S3=0")
     else:
         try:
             runs.append(run_s3(corpus, embedder, state_root))

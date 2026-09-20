@@ -3759,7 +3759,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wsindex"
+name = "thulr"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

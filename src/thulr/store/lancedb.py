@@ -1,0 +1,752 @@
+"""LanceDB-backed VectorStore: one workspace table with a `repo` column (ADR-7).
+
+Layout inside the LanceDB database the `uri` points to (a local directory
+or an s3:// prefix; S3 credentials come from the environment, never from
+the config):
+
+    data      - all chunks of the workspace; the service `dataset` column
+                holds the dataset name (Chunk.repo stays untouched
+                payload), metadata fields are real columns so filters
+                can prefilter
+    datasets  - the dataset registry (name + metric): LanceDB has no
+                notion of "dataset", the contract's created/not-created
+                distinction lives here
+
+The `VectorStore` contract is unchanged: `dataset_name` maps onto the
+`dataset` column, so the pipeline never learns there is only one table.
+"""
+
+import re
+from collections.abc import Sequence
+from datetime import timedelta
+from pathlib import Path
+from typing import Any, cast
+
+import lancedb
+import pyarrow as pa
+from lancedb import DBConnection
+from lancedb.query import LanceVectorQueryBuilder
+from lancedb.table import Table
+
+from thulr.embed.embedder import Embedder
+from thulr.model import Chunk, ChunkMeta, Hit, Kind, SearchFilter
+from thulr.store.base import CompactReport, VectorStore
+
+
+def _sql_quote(value: str) -> str:
+    """Escape a value for embedding into a single-quoted SQL literal."""
+    return value.replace("'", "''")
+
+
+def _glob_to_like(glob: str) -> str:
+    """Convert an fnmatch-style glob to a SQL LIKE pattern with `\\` escape.
+
+    Both `*` and `**` map to `%` — DataFusion LIKE has no depth
+    distinction, so `src/*.py` matches `src/a/b.py` too. Literal `%`,
+    `_`, `\\` in the input are escaped, and the caller pairs the pattern
+    with `ESCAPE '\\'` in the LIKE clause.
+    """
+    out: list[str] = []
+    for ch in glob:
+        if ch in ("%", "_", "\\"):
+            out.append("\\" + ch)
+        elif ch == "*":
+            out.append("%")
+        elif ch == "?":
+            out.append("_")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _filter_predicates(filters: SearchFilter) -> list[str]:
+    """Turn SearchFilter fields into a list of AND-joinable SQL predicates.
+
+    Empty tuples / None fields contribute no predicate. Lang and kind
+    become IN clauses (OR within the field); path and symbol become
+    LIKE clauses with `\\` as the escape character.
+    """
+    parts: list[str] = []
+    if filters.lang:
+        joined = ", ".join(f"'{_sql_quote(v)}'" for v in filters.lang)
+        parts.append(f"lang IN ({joined})")
+    if filters.kind:
+        joined = ", ".join(f"'{_sql_quote(v.value)}'" for v in filters.kind)
+        parts.append(f"kind IN ({joined})")
+    if filters.path is not None:
+        parts.append(f"path LIKE '{_sql_quote(_glob_to_like(filters.path))}' ESCAPE '\\'")
+    if filters.symbol is not None:
+        pattern = "%" + _sql_quote(_glob_to_like(filters.symbol)) + "%"
+        parts.append(f"symbol LIKE '{pattern}' ESCAPE '\\'")
+    return parts
+
+
+def retrieval_text(chunk: Chunk) -> str:
+    """What the embedder reads, which is not what the store keeps.
+
+    The stored `text` is a verbatim slice of its line range and has to
+    stay one — a hit points at `file:line` and the two must agree. What
+    goes into the *vector* is under no such obligation, and until now it
+    was the same string, which threw away everything a reader has before
+    they open a file: what the file is called and what the definition is
+    named.
+
+    So a chunk is embedded as its own name and location followed by its
+    code. Path separators, underscores and dots become spaces because a
+    sentence model tokenises `ingest/text_chunker.py` into fragments and
+    `text chunker` into words.
+
+    **Commit chunks are left alone**, and that is measured rather than
+    assumed. Their "path" is a synthetic `commits/<date>-<sha>` and their
+    symbol is the sha — a date and a hash spelled into words, which is
+    noise by construction. Across the sixty blind questions, applying
+    this everywhere and applying it to code only scored identically, so
+    the version that keeps a sha out of a vector is the one to keep.
+
+    **The body stays, and which model reads it decides that.** The
+    obvious economy here is to send the prose — the name, the path, the
+    comments — and leave 1.8 million lines of code out of the vector. It
+    was measured on 204 harvested questions, three ways: the whole chunk,
+    the prose only, and the name and path alone.
+
+    | what the embedder got | all-MiniLM-L6-v2 | voyage-code-4 |
+    | --- | ---: | ---: |
+    | name, path, whole chunk | 98 | **130** |
+    | name, path, prose only | 98 | 105 |
+    | name and path only | 67 | — |
+
+    Under the shipped local model the body is worth **nothing**: 11
+    questions gained and 11 lost, p = 1.0. Under a model trained on code
+    it is worth 25 — 35 gained against 10 lost, p = 0.0002. So whether
+    code belongs in a vector is not a fact about code, it is a fact about
+    the model, and writing the economy in would have quietly capped the
+    only configuration that clears 130.
+
+    **A licence header costs nothing, which is worth knowing because it
+    looks like it should.** CloudBeaver opens 2 931 of its 3 509
+    TypeScript files with the same seven lines, and in
+    `SessionActivityService.ts` those seven share a chunk with the
+    constant that answers a question about it — the only prose in a file
+    whose vector depends on prose being a corpus-wide constant. Stripping
+    the opening comment block from what the embedder reads, on the 84
+    authored questions: 61 answers before and 61 after, and **not one
+    question changed in either direction**. Identical text in four files
+    of five moves every vector the same way, so it moves none of them
+    relative to the others. Detecting boilerplate by frequency was
+    designed and then not built, on this.
+
+    It also says where the remote arm's advantage comes from. Hosted
+    scores 130 against local's 98, and hosted *on prose alone* scores
+    105 — so about 25 of those 32 points are "it can read code" rather
+    than "its vectors are better". The pipeline sweep that preceded this
+    bought 14 points; the model is worth twice that, which is the honest
+    ordering of what is left to do.
+
+    The prose row is not a tie either way: local prose and local body
+    score 98 apiece and **disagree on 22 questions**, eleven each. Equal
+    totals, different tool.
+
+    **And a code model on this hardware is hurt by the code.** Asked the
+    same way, `CodeRankEmbed` scores 91 with the body and **100**
+    without it — fourteen questions for the body against twenty-three
+    for the prose, p = 0.19. So the body is noise to a small general
+    model, noise it can be misled by to a small code model, and signal
+    to a large one. That is the whole of why the sweep came out the way
+    it did: three models trained on code all lose to a general model a
+    quarter their size, because the thing they were trained to read is
+    the thing that misleads them at that size.
+
+    It is a finding and not a change. Sending prose alone would gain
+    nothing for the model that ships, gain 9 for a model nobody here
+    recommends, and cost 25 for the best configuration available. What it
+    is good for is choosing: feed prose to a small code model, feed
+    everything to a large one.
+
+    Chunk ids do not move: `Chunk.chunk_id` hashes the stored text and
+    the path, neither of which this touches. Vectors do, so changing it
+    means re-indexing.
+    """
+    if chunk.kind == Kind.COMMIT.value:
+        return chunk.text
+    named = " ".join(part for part in (chunk.symbol, chunk.path) if part)
+    return f"{_words(named)}\n{chunk.text}" if named else chunk.text
+
+
+def _words(name: str) -> str:
+    """`ingest/text_chunker.py` -> `ingest text chunker py`."""
+    return re.sub(r"[/_.\-]+", " ", name).strip()
+
+
+_FTS_COLUMN = "text"
+"""What BM25 reads: the stored slice, the same bytes `grep` would see.
+
+Not `retrieval_text`, which prepends the symbol and path for the
+embedder. Lexical matching earns its place by being the thing that finds
+a literal a person copied out of a stack trace, and the honest comparison
+is against `grep` over the file — so it reads what `grep` reads."""
+
+_NOT_HISTORY = f"kind != '{Kind.COMMIT.value}'"
+"""Commit messages take no part in the lexical arm, and this was
+measured rather than reasoned.
+
+Fused without it, `hit@3` over 154 harvested questions went *down* —
+29 to 16 — and the reason is visible in the arm's own output: asked
+anything, BM25 answered with `commits/...` for almost every question.
+Prose matching prose, which is the exact failure `COMMIT_SHARE` already
+exists to contain on the vector side ("a message is prose, a query is
+prose, so history scores well on almost anything"). That quota lives in
+`Pipeline.search`, above this, so by the time it ran the code had
+already been crowded out of the k rows this returns — a cap with no
+spares left to promote.
+
+History keeps its place in search; it keeps it through the arm that
+ranks by meaning and under a quota, which is where it earned it."""
+
+
+def _hit(row: dict[str, Any], *, score: float) -> Hit:
+    """One store row as a `Hit`, with the internals dropped."""
+    return Hit(
+        score=score,
+        native_id=row["id"],
+        metadata={
+            key: value
+            for key, value in row.items()
+            if key not in ("vector", "_distance", "_score", "_relevance_score", "dataset")
+        },
+    )
+
+
+class LanceDBStore(VectorStore):
+    """Embedded LanceDB backend; disk layout in the module docstring."""
+
+    def __init__(
+        self,
+        uri: str,
+        *,
+        embedder: Embedder,
+        hybrid: bool = False,
+    ) -> None:
+        """Connect to the database and ensure both tables exist.
+
+        Connecting is eager (LanceDB lists table manifests immediately),
+        so a wrong uri or missing S3 environment fails here, not in the
+        middle of an indexing run.
+
+        Args:
+            uri: Database location — a local path or `s3://bucket/prefix`;
+                for s3 the endpoint and credentials come from standard
+                `AWS_*` environment variables.
+            embedder: Embeds chunk texts and queries; its `dim` is baked
+                into the vector column, so switching the model requires
+                re-indexing.
+            hybrid: Fuse a BM25 pass over the stored text with the vector
+                pass (see `search`). Off by default until the ranked
+                result is measured, not because the recall is in doubt.
+        """
+        self.embedder = embedder
+        self.hybrid = hybrid
+        self.schema = pa.schema(
+            [
+                pa.field("vector", pa.list_(pa.float32(), self.embedder.dim)),
+                # Service column: dataset membership is the store's own
+                # bookkeeping — Chunk.repo stays untouched payload.
+                pa.field("dataset", pa.string()),
+                pa.field("id", pa.string()),
+                pa.field("repo", pa.string()),
+                pa.field("path", pa.string()),
+                pa.field("lang", pa.string()),
+                pa.field("kind", pa.string()),
+                pa.field("symbol", pa.string()),
+                pa.field("node_type", pa.string()),
+                pa.field("start_line", pa.int32()),
+                pa.field("end_line", pa.int32()),
+                pa.field("text", pa.string()),
+            ]
+        )
+        self.db: DBConnection = lancedb.connect(uri)
+        self.tbl: Table = self.db.create_table("data", schema=self.schema, exist_ok=True)
+        datasets_schema = pa.schema(
+            [
+                pa.field("repo", pa.string()),
+                pa.field("metric", pa.string()),
+            ]
+        )
+        self.dataset_table: Table = self.db.create_table(
+            "datasets", schema=datasets_schema, exist_ok=True
+        )
+        self._known_datasets: dict[str, dict[str, Any]] = {}
+        self._query_memo: tuple[str, list[float]] | None = None
+        self._ids_of: tuple[str, set[str]] | None = None
+
+    def _get_datasets(self) -> dict[str, dict[str, Any]]:
+        """Registry rows by dataset name; one scan per store instance.
+
+        The cache is updated locally after writes. It used to say it
+        could not grow stale because a store lived for one CLI
+        invocation — true until the server gave the store a process that
+        outlives the question, at which point a repo registered by
+        somebody else stayed invisible here forever. `refresh` drops it.
+        """
+        if not self._known_datasets:
+            for d in self.dataset_table.search().to_list():
+                self._known_datasets[d["repo"]] = d
+        return self._known_datasets
+
+    def datasets(self) -> set[str]:
+        """Every dataset in the registry table; see the base contract."""
+        return set(self._get_datasets())
+
+    def create_dataset(self, dataset_name: str, *, metric: str) -> None:
+        """Register the dataset in the registry table; a no-op if known.
+
+        LanceDB binds the metric at query time, not at table creation,
+        so the metric guard is entirely ours.
+
+        Args:
+            dataset_name: Dataset to create; becomes a `repo` column value.
+            metric: Similarity metric; this backend only supports "cosine".
+
+        Raises:
+            ValueError: The metric is not "cosine".
+        """
+        if metric != "cosine":
+            raise ValueError("Metric must be 'cosine'")
+        self._get_datasets()
+        if self._known_datasets.get(dataset_name) is not None:
+            return
+        dataset = {"repo": dataset_name, "metric": metric}
+        self.dataset_table.add([dataset])
+        self._known_datasets[dataset_name] = dataset
+
+    def add_chunks(self, dataset_name: str, *, chunks: Sequence[Chunk]) -> int:
+        """Embed and store chunks that are new to the dataset.
+
+        Dedup key is the deterministic chunk id (also within one batch),
+        and dedup runs BEFORE embedding, so a re-index embeds nothing.
+        All new chunks are written as one batch — one Lance commit.
+
+        Args:
+            dataset_name: Dataset to write into; must be registered
+                (see `create_dataset`).
+            chunks: Candidate chunks; already-stored ones are skipped by id.
+
+        Returns:
+            How many chunks were actually written.
+
+        Raises:
+            ValueError: The dataset was never created.
+        """
+        if self._get_datasets().get(dataset_name) is None:
+            raise ValueError("Dataset is not present in the store")
+        known = self._dataset_ids(dataset_name)
+        new_chunks = []
+        for chunk in chunks:
+            if chunk.id in known:
+                continue
+            known.add(chunk.id)
+            new_chunks.append(chunk)
+        if not new_chunks:
+            return 0
+        vectors = self.embedder.embed([retrieval_text(chunk) for chunk in new_chunks])
+        rows = []
+        for chunk, vec in zip(new_chunks, vectors, strict=True):
+            row = chunk.to_metadata()
+            row["vector"] = vec
+            row["dataset"] = dataset_name
+            rows.append(row)
+        self.tbl.add(rows)
+        return len(rows)
+
+    def count_tokens(self, text: str) -> int:
+        """Exactly what this store's model will read, since it has one."""
+        return self.embedder.count_tokens(text)
+
+    def vectors(self, dataset_name: str, *, kind: Kind | None = None) -> dict[str, list[float]]:
+        """Every vector in the dataset, read in one pass over the table."""
+        rows = self.tbl.to_arrow().select(["id", "dataset", "kind", "vector"]).to_pylist()
+        return {
+            str(row["id"]): list(row["vector"])
+            for row in rows
+            if row["dataset"] == dataset_name and (kind is None or row["kind"] == kind.value)
+        }
+
+    def metadata_of(self, dataset_name: str, *, ids: Sequence[str]) -> dict[str, ChunkMeta]:
+        """Where each of these chunks came from, and what sort of file it was."""
+        wanted = set(ids)
+        rows = (
+            self.tbl.to_arrow()
+            .select(["id", "dataset", "path", "start_line", "end_line", "kind"])
+            .to_pylist()
+        )
+        return {
+            str(row["id"]): ChunkMeta(
+                path=str(row["path"]),
+                start_line=int(row["start_line"]),
+                end_line=int(row["end_line"]),
+                kind=str(row["kind"]),
+            )
+            for row in rows
+            if row["dataset"] == dataset_name and str(row["id"]) in wanted
+        }
+
+    def search(
+        self,
+        dataset_name: str,
+        *,
+        query: str,
+        k: int,
+        filters: SearchFilter | None = None,
+    ) -> list[Hit]:
+        """Exact cosine top-k over one dataset via a prefiltered KNN.
+
+        Both the `dataset` predicate and any user filters are applied
+        BEFORE the vector search (prefilter=True) and joined with AND, so
+        the top-k is computed over the fully filtered subset — a
+        postfilter over an unfiltered top-k would silently under-fill.
+
+        Args:
+            dataset_name: Dataset to search in.
+            query: Query text; embedded locally with the injected embedder.
+            k: Maximum number of hits to return.
+            filters: Structural filters composed into the same WHERE.
+
+        Returns:
+            At most k hits, best score first; empty for an empty dataset.
+
+        Raises:
+            ValueError: The dataset was never created — a normal state,
+                the pipeline skips such datasets silently.
+        """
+        if self._get_datasets().get(dataset_name) is None:
+            raise ValueError("Dataset is not present in the store")
+        parts = [f"dataset = '{_sql_quote(dataset_name)}'"]
+        if filters is not None and not filters.is_empty:
+            parts.extend(_filter_predicates(filters))
+        predicate = " AND ".join(parts)
+        builder = cast("LanceVectorQueryBuilder", self.tbl.search(self._query_vector(query)))
+        scan = builder.where(predicate, prefilter=True).distance_type("cosine")
+        rows = scan.limit(k).to_list()
+        return [_hit(row, score=1 - row["_distance"]) for row in rows]
+
+    def lexical(
+        self,
+        dataset_name: str,
+        *,
+        query: str,
+        k: int,
+        filters: SearchFilter | None = None,
+    ) -> list[Hit]:
+        """The BM25 pass over one dataset, best first.
+
+        Scored, not fused: what to do with two disagreeing rankings is
+        `Pipeline.search`'s business, and putting it here was measured to
+        be wrong. Fusing per dataset gives every dataset's best hit the
+        same rank score, so the merge across datasets — which sorts by
+        score — had nothing left to order by and picked arbitrarily. The
+        contract already says this: merging across datasets is pipeline
+        policy and lives in one place.
+
+        Empty rather than an error when there is no text index: it is
+        built at the end of an indexing run, so a store written by an
+        older thulr has none, and raising here would break every
+        existing workspace on the day hybrid shipped.
+        """
+        parts = [f"dataset = '{_sql_quote(dataset_name)}'", _NOT_HISTORY]
+        if filters is not None and not filters.is_empty:
+            parts.extend(_filter_predicates(filters))
+        try:
+            builder = self.tbl.search(query, query_type="fts", fts_columns=_FTS_COLUMN)
+            rows = builder.where(" AND ".join(parts)).limit(k).to_list()
+        except Exception:  # no index yet, or a query BM25 cannot parse
+            return []
+        # Scored by BM25, which is this arm's own signal and what it
+        # has to be ordered by. Scoring it by cosine instead was tried
+        # and measured: it makes the lexical arm a weaker copy of the
+        # vector one, because the pipeline then orders it by semantic
+        # similarity, and top-ten with a reranker fell 85 to 77.
+        #
+        # The cost is that `score` carries two scales once the arms are
+        # fused — a cosine for what the vector arm found, a BM25 figure
+        # for what only this one did. Eight questions is too much to pay
+        # for one tidy column.
+        return [_hit(row, score=float(row.get("_score", 0.0))) for row in rows]
+
+    def refresh_text_index(self) -> None:
+        """Build or rebuild the BM25 index over the stored text.
+
+        Called once at the end of an indexing run rather than per batch:
+        LanceDB rewrites the whole index, so doing it per `add_chunks`
+        would make a run quadratic in the number of batches.
+
+        A no-op when hybrid search is off, because an index nothing reads
+        is disk and time spent on nothing.
+        """
+        if not self.hybrid or not self.tbl.count_rows():
+            return
+        # `stem` and `remove_stop_words` off: they are built for prose and
+        # this column is source code. Stemming turns `Caching` and `Cached`
+        # into one token, which is the point in English and wrong for two
+        # different identifiers; the stop-word list eats `in`, `is` and
+        # `for`, which are keywords somebody may be searching for.
+        # `create_fts_index` rather than `create_index(config=FTS(...))`,
+        # which the library prefers: in 0.37 the replacement's sync
+        # signature names only a *vector* column, so there is no way to
+        # point it at a text one. Revisit when that changes.
+        self.tbl.create_fts_index(_FTS_COLUMN, replace=True, stem=False, remove_stop_words=False)
+
+    def _query_vector(self, query: str) -> list[float]:
+        """The query's embedding, remembered for exactly one string.
+
+        `Pipeline.search` asks one dataset at a time, so a workspace of R
+        repositories ran the same sentence through the model R times —
+        3.9 ms each, and 48% of a single-repo search. Not a cache for
+        users who repeat themselves (measured, they do not): the repeat
+        is inside one search and is guaranteed.
+
+        The memo is one tuple, read into a local and written whole. A
+        server shares this store across threads, and a pair of separate
+        fields would let one thread's query meet another thread's vector
+        — the wrong answer, silently. A tuple cannot be half-replaced.
+        """
+        memo = self._query_memo
+        if memo is not None and memo[0] == query:
+            return memo[1]
+        # `embed_query`, not `embed([query])[0]`: for an asymmetric model
+        # those are different vectors, and the difference is the model's
+        # own instruction on the question side.
+        vector: list[float] = self.embedder.embed_query(query)
+        self._query_memo = (query, vector)
+        return vector
+
+    def _dataset_ids(self, dataset_name: str) -> set[str]:
+        """Every id in one dataset, read once and kept for this run.
+
+        Dedup used to re-read the whole dataset for every batch of two
+        thousand chunks, so indexing N chunks cost O(N²/B) — 200 000
+        chunks took 5.38 s against 2.12 s when the set is read once.
+
+        One dataset at a time, not a map of all of them: the pipeline
+        indexes repo by repo, so this holds the same peak the per-batch
+        read already held (400 000 ids is about 40 MB) rather than the
+        sum over every repo.
+
+        Dropped by `refresh`, which is what a long-lived server calls
+        before it reads. Within one indexing run the set can only go
+        stale if somebody else writes to the same dataset at the same
+        time, which ADR-10's one-writer rule already forbids.
+        """
+        held = self._ids_of
+        if held is not None and held[0] == dataset_name:
+            return held[1]
+        predicate = f"dataset = '{_sql_quote(dataset_name)}'"
+        ids = {r["id"] for r in self.tbl.search().where(predicate).select(["id"]).to_list()}
+        self._ids_of = (dataset_name, ids)
+        return ids
+
+    def chunk_ids(self, dataset_name: str, *, paths: Sequence[str] | None = None) -> set[str]:
+        """Ids stored for the given paths, scoped to one dataset.
+
+        `IN (...)` rather than OR-joined equalities for the path list:
+        DataFusion turns an `InList` into a hash set at plan time, while
+        a chain of ORs stays a BooleanOr tree evaluated per row (the
+        step-20 probe measured 3.8x on 1000 terms).
+
+        The dataset predicate is required for the same reason as in
+        `delete_chunks`: one physical table holds every repo (ADR-7), and
+        `chunk_id = sha256(text, path)` carries no repo, so two repos
+        with the same file share an id.
+
+        Args:
+            dataset_name: Dataset to read from; must be registered.
+            paths: Repo-relative POSIX paths, or None for the whole dataset.
+
+        Returns:
+            The stored chunk ids.
+
+        Raises:
+            TypeError: `paths` is a bare string instead of a batch.
+            ValueError: The dataset was never created.
+        """
+        if isinstance(paths, str):
+            raise TypeError("expected a batch of paths, got a single str")
+        if self._get_datasets().get(dataset_name) is None:
+            raise ValueError("Dataset is not present in the store")
+        if paths is not None and not paths:
+            # Asking about no paths is not asking about all of them; the
+            # `None` default is the only way to say "everything".
+            return set()
+        predicate = f"dataset = '{_sql_quote(dataset_name)}'"
+        if paths is not None:
+            path_list = ", ".join(f"'{_sql_quote(p)}'" for p in paths)
+            predicate += f" AND path IN ({path_list})"
+        rows = self.tbl.search().where(predicate).select(["id"]).to_list()
+        return {row["id"] for row in rows}
+
+    def delete_chunks(self, dataset_name: str, *, ids: Sequence[str]) -> int:
+        """Delete chunks by id, scoped to one dataset.
+
+        The dataset predicate is required, not decorative: the workspace
+        keeps every repo's chunks in one physical table (ADR-7), and a
+        bare `id IN (...)` would silently wipe matching rows across every
+        dataset. The risk is real because `Chunk.chunk_id = sha256(text, path)`
+        does not include repo, so two repos with the same file share the
+        same id. Both the dataset name and each id are `_sql_quote`-escaped
+        before being embedded into the WHERE clause.
+
+        Args:
+            dataset_name: Dataset to delete from; must be registered
+                (see `create_dataset`).
+            ids: Chunk ids to remove; missing ids are silently skipped.
+
+        Returns:
+            How many rows the delete actually removed (may be below
+            `len(ids)` when some were not there).
+
+        Raises:
+            TypeError: `ids` is a bare string instead of a batch.
+            ValueError: The dataset was never created.
+        """
+        if isinstance(ids, str):
+            raise TypeError("expected a batch of ids, got a single str")
+        if self._get_datasets().get(dataset_name) is None:
+            raise ValueError("Dataset is not present in the store")
+        if not ids:
+            return 0
+        held = self._ids_of
+        if held is not None and held[0] == dataset_name:
+            # Or a re-index in the same process would refuse to write
+            # back a chunk it had just deleted: the kept set would still
+            # claim to hold it. Discarding costs nothing and keeps the
+            # set meaning "what is in the dataset", which is the only
+            # meaning it can safely have.
+            held[1].difference_update(ids)
+        # One predicate for every id, however many that is. Batching was
+        # tried and measured: 200 000 ids cost 4.7 s whether they went in
+        # one call or a hundred, because the time is Lance rewriting data
+        # files, not parsing a 13 MB predicate. The batching would have
+        # been code and extra commits for nothing.
+        id_list = ", ".join(f"'{_sql_quote(x)}'" for x in ids)
+        predicate = f"dataset = '{_sql_quote(dataset_name)}' AND id IN ({id_list})"
+        result = self.tbl.delete(predicate)
+        # LanceDB's DeleteResult carries num_deleted_rows at runtime
+        # (measured), but the field is missing from the stubs as of
+        # 0.21+; the cast + ignore is self-cleaning via
+        # `warn_unused_ignores` when the stubs catch up.
+        return cast("int", result.num_deleted_rows)  # type: ignore[attr-defined]
+
+    def chunk_text(self, dataset_name: str, *, ids: Sequence[str]) -> dict[str, str]:
+        """Text of the given chunks, scoped to one dataset.
+
+        Same `IN (...)` and same dataset predicate as `chunk_ids`, for
+        the same two reasons: DataFusion turns an `InList` into a hash
+        set at plan time, and one physical table holds every repo, so a
+        bare `id IN (...)` would read across datasets (ADR-7).
+
+        Args:
+            dataset_name: Dataset to read from; must be registered.
+            ids: Chunk ids to fetch.
+
+        Returns:
+            Chunk id -> text, for the ids that were found.
+
+        Raises:
+            TypeError: `ids` is a bare string instead of a batch.
+            ValueError: The dataset was never created.
+        """
+        if isinstance(ids, str):
+            raise TypeError("expected a batch of ids, got a single str")
+        if self._get_datasets().get(dataset_name) is None:
+            raise ValueError("Dataset is not present in the store")
+        if not ids:
+            return {}
+        id_list = ", ".join(f"'{_sql_quote(x)}'" for x in ids)
+        predicate = f"dataset = '{_sql_quote(dataset_name)}' AND id IN ({id_list})"
+        rows = self.tbl.search().where(predicate).select(["id", "text"]).to_list()
+        return {row["id"]: row["text"] for row in rows}
+
+    def _tables(self) -> tuple[Table, Table]:
+        """Every physical table this store owns; both need housekeeping."""
+        return (self.tbl, self.dataset_table)
+
+    def _versions(self) -> int:
+        """Total historical versions across the store's tables."""
+        return sum(len(table.list_versions()) for table in self._tables())
+
+    def _on_disk_bytes(self) -> int | None:
+        """Bytes the database occupies, or None if that cannot be measured.
+
+        Walking the directory is the only honest measure. The per-version
+        `total_files_size` that `list_versions` reports cannot be summed:
+        Lance is copy-on-write and versions share fragments, so the total
+        would count the same file once per version that references it.
+
+        Returns None for a remote uri (`s3://...`), where listing objects
+        would need a separate storage API this store does not carry.
+        """
+        uri = self.db.uri
+        if "://" in uri:
+            return None
+        root = Path(uri)
+        if not root.is_dir():
+            return None
+        return sum(p.stat().st_size for p in root.rglob("*") if p.is_file())
+
+    def refresh(self) -> None:
+        """Move both handles to the newest committed version.
+
+        `checkout_latest` on each table. Both, because the dataset
+        registry is written by `create_dataset` in whichever process ran
+        it — a server that refreshed only the data table would keep
+        answering "no such dataset" for a repo somebody else registered.
+        """
+        for table in self._tables():
+            # Untyped in lancedb's stubs, like most of its surface.
+            table.checkout_latest()  # type: ignore[no-untyped-call]
+        # And the registry cache above it: moving the table handle
+        # forward means nothing while a dict remembers the old answer.
+        #
+        # Replaced, not emptied. `_get_datasets` hands out this very
+        # object, so clearing it empties a dict another thread is already
+        # reading — and that thread then finds a dataset missing that is
+        # not. Measured: widen the window to 2 ms and 2805 of 2868
+        # concurrent searches fail with "Dataset is not present". Binding
+        # a new dict is one atomic store; the other thread keeps reading
+        # the old, complete one.
+        self._known_datasets = {}
+        # Same reasoning for the two memos below, and the same fix: a new
+        # binding rather than a mutation of one another thread may hold.
+        self._query_memo = None
+        self._ids_of = None
+
+    def compact(self, *, older_than: timedelta = timedelta(0)) -> CompactReport:
+        """Merge small files and drop old versions, on every table.
+
+        Order matters inside LanceDB's `optimize`: compaction writes a
+        NEW, merged version and the versions it replaces stay on disk, so
+        compacting without pruning makes the directory *grow*. Measured
+        measured: 20 append batches then 150 deletes left 273 KB,
+        a bare `optimize()` took it to 317 KB, and only pruning brought it
+        to 43 KB. Passing `cleanup_older_than` is therefore not a tuning
+        knob here — it is the half that does the reclaiming.
+
+        `delete_unverified` is left at its default. Files from a failed
+        transaction are only removed once they are a week old, which is
+        what keeps this safe to run while another process might be
+        mid-write; overriding it can corrupt the dataset.
+
+        Args:
+            older_than: Keep versions younger than this; default keeps none.
+
+        Returns:
+            Sizes and version counts either side of the pass.
+        """
+        bytes_before = self._on_disk_bytes()
+        versions_before = self._versions()
+        for table in self._tables():
+            table.optimize(cleanup_older_than=older_than)
+        return CompactReport(
+            bytes_before=bytes_before,
+            bytes_after=self._on_disk_bytes(),
+            versions_before=versions_before,
+            versions_after=self._versions(),
+        )

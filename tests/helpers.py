@@ -29,7 +29,7 @@ def needs_grammar(*langs: str) -> pytest.MarkDecorator:
     Returns:
         The mark to apply.
     """
-    from wsindex.ingest.languages import REGISTRY
+    from thulr.ingest.languages import REGISTRY
 
     missing = [lang for lang in langs if REGISTRY.parser(lang) is None]
     return pytest.mark.skipif(

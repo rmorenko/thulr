@@ -8,7 +8,7 @@ have.
 
 from pathlib import Path
 
-from wsindex.ingest.manifests import read_manifests
+from thulr.ingest.manifests import read_manifests
 
 
 def test_a_go_module_names_itself_and_what_it_requires(tmp_path: Path) -> None:
@@ -46,12 +46,12 @@ def test_npm_dev_and_peer_dependencies_all_count(tmp_path: Path) -> None:
 
 def test_a_python_dependency_is_read_without_its_version_range(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text(
-        '[project]\nname = "wsindex"\ndependencies = ["httpx>=0.28,<1", "typer"]\n'
+        '[project]\nname = "thulr"\ndependencies = ["httpx>=0.28,<1", "typer"]\n'
     )
 
     found = read_manifests(tmp_path)
 
-    assert found.provides == {"wsindex"}
+    assert found.provides == {"thulr"}
     assert found.depends == {"httpx", "typer"}
 
 

@@ -18,9 +18,9 @@ from importlib.metadata import EntryPoint
 
 import pytest
 
-from wsindex.ingest.languages import LanguageRegistry, LanguageSpec
-from wsindex.ingest.plugins import ENTRY_POINT_GROUP, PluginLoadWarning, load_plugins
-from wsindex.model import Kind
+from thulr.ingest.languages import LanguageRegistry, LanguageSpec
+from thulr.ingest.plugins import ENTRY_POINT_GROUP, PluginLoadWarning, load_plugins
+from thulr.model import Kind
 
 GROUP = ENTRY_POINT_GROUP
 
@@ -35,7 +35,7 @@ def advertise(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
 
     def install(*points: EntryPoint) -> None:
         monkeypatch.setattr(
-            "wsindex.ingest.plugins.entry_points",
+            "thulr.ingest.plugins.entry_points",
             lambda group: tuple(p for p in points if p.group == group),
         )
 
@@ -110,7 +110,7 @@ def test_a_plugin_that_fails_to_import_is_skipped(
 def test_a_missing_attribute_is_skipped(
     registry: LanguageRegistry, advertise: Callable[..., None]
 ) -> None:
-    # A plugin built against a wsindex that named things differently.
+    # A plugin built against a thulr that named things differently.
     advertise(ep("typo", "plugin_fixture:NO_SUCH_NAME"))
     with pytest.warns(PluginLoadWarning, match="import failed"):
         assert load_plugins(registry, group=GROUP) == ()
@@ -178,19 +178,19 @@ def test_the_warning_names_the_plugin(
 def test_the_group_name_is_the_documented_one() -> None:
     # Plugins hardcode this string in their pyproject; renaming it breaks
     # every plugin already published.
-    assert ENTRY_POINT_GROUP == "wsindex.languages"
+    assert ENTRY_POINT_GROUP == "thulr.languages"
 
 
-def test_wsindex_advertises_no_language_plugins_of_its_own() -> None:
+def test_thulr_advertises_no_language_plugins_of_its_own() -> None:
     # Built-ins are registered directly, not through entry points: the
     # core must not pay discovery to find what it already ships.
     #
-    # Asks wsindex's own metadata rather than the whole environment —
+    # Asks thulr's own metadata rather than the whole environment —
     # otherwise installing any plugin (which is exactly what the example
     # does) would fail this.
     from importlib.metadata import distribution
 
-    declared = [point for point in distribution("wsindex").entry_points if point.group == GROUP]
+    declared = [point for point in distribution("thulr").entry_points if point.group == GROUP]
     assert declared == []
 
 

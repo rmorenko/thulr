@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config
-from wsindex.connectors import (
+from thulr.config import Config
+from thulr.connectors import (
     SHIPPED,
     ConnectorError,
     ConnectorSpec,
@@ -28,7 +28,7 @@ from wsindex.connectors import (
     http,
     route,
 )
-from wsindex.connectors.http import html_to_text
+from thulr.connectors.http import html_to_text
 
 GITHUB = ConnectorSpec(type="github", url_pattern="https://github.com/org/*")
 ANY_HTTP = ConnectorSpec(type="generic-http", url_pattern="https://*")
@@ -82,8 +82,8 @@ def test_a_connector_without_a_token_env_needs_none() -> None:
 
 
 def test_a_token_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WSINDEX_TEST_TOKEN", "s3cret")
-    spec = ConnectorSpec(type="github", url_pattern="*", token_env="WSINDEX_TEST_TOKEN")
+    monkeypatch.setenv("THULR_TEST_TOKEN", "s3cret")
+    spec = ConnectorSpec(type="github", url_pattern="*", token_env="THULR_TEST_TOKEN")
     assert spec.token() == "s3cret"
 
 
@@ -91,9 +91,9 @@ def test_a_named_but_unset_token_is_an_error(monkeypatch: pytest.MonkeyPatch) ->
     # Falling back to an anonymous request is the worse failure: GitHub
     # then answers 404, which reads as "no such document" and sends the
     # user looking in entirely the wrong place.
-    monkeypatch.delenv("WSINDEX_TEST_TOKEN", raising=False)
-    spec = ConnectorSpec(type="github", url_pattern="*", token_env="WSINDEX_TEST_TOKEN")
-    with pytest.raises(ConnectorError, match="WSINDEX_TEST_TOKEN"):
+    monkeypatch.delenv("THULR_TEST_TOKEN", raising=False)
+    spec = ConnectorSpec(type="github", url_pattern="*", token_env="THULR_TEST_TOKEN")
+    with pytest.raises(ConnectorError, match="THULR_TEST_TOKEN"):
         spec.token()
 
 
@@ -108,7 +108,7 @@ def stub_github(monkeypatch: pytest.MonkeyPatch, payload: dict[str, object]) -> 
         asked.append(url)
         return json.dumps(payload).encode(), "application/json"
 
-    monkeypatch.setattr("wsindex.connectors.github._get", fake_get)
+    monkeypatch.setattr("thulr.connectors.github._get", fake_get)
     return asked
 
 
@@ -165,14 +165,14 @@ def test_a_missing_issue_names_the_url_the_user_asked_about(
     def fake_get(url: str, headers: dict[str, str]) -> tuple[bytes, str]:
         raise DocumentNotFound(f"{url} is not there, or not visible")
 
-    monkeypatch.setattr("wsindex.connectors.github._get", fake_get)
+    monkeypatch.setattr("thulr.connectors.github._get", fake_get)
     with pytest.raises(DocumentNotFound, match=r"github\.com/org/repo/issues/9"):
         GitHubConnector(GITHUB).fetch("https://github.com/org/repo/issues/9")
 
 
 def test_non_json_from_github_is_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "wsindex.connectors.github._get",
+        "thulr.connectors.github._get",
         lambda url, headers: (b"<html>maintenance</html>", "text/html"),
     )
     with pytest.raises(ConnectorError, match="not JSON"):
@@ -188,7 +188,7 @@ def test_fetching_a_url_github_does_not_handle_is_an_error() -> None:
 
 
 def stub_http(monkeypatch: pytest.MonkeyPatch, body: bytes, content_type: str) -> None:
-    monkeypatch.setattr("wsindex.connectors.http._get", lambda url, headers: (body, content_type))
+    monkeypatch.setattr("thulr.connectors.http._get", lambda url, headers: (body, content_type))
 
 
 def test_markdown_arrives_untouched(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,7 +259,7 @@ def test_connectors_default_to_empty() -> None:
 
 
 def test_connectors_are_read_in_file_order(tmp_path: Path) -> None:
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(
         Config.default("demo").save(path).read_text()
         + '\n[[connectors]]\ntype = "github"\nurl_pattern = "https://github.com/org/*"\n'
@@ -278,7 +278,7 @@ def test_an_incomplete_entry_is_skipped(tmp_path: Path) -> None:
     # An entry with no pattern routes nothing; refusing to load the whole
     # config over it would take the workspace down for a typo in a
     # section nothing else depends on.
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(
         Config.default("demo").save(path).read_text()
         + '\n[[connectors]]\ntype = "github"\n'
@@ -293,7 +293,7 @@ def test_init_does_not_write_an_empty_connectors_array(tmp_path: Path) -> None:
     # TOML does not let a static array become an array of tables, so
     # `connectors = []` in a fresh config would break the one documented
     # way to add an entry: appending a `[[connectors]]` block.
-    path = Config.default("demo").save(tmp_path / "wsindex.toml")
+    path = Config.default("demo").save(tmp_path / "thulr.toml")
     assert "connectors" not in path.read_text()
 
 
@@ -334,7 +334,7 @@ def serve(monkeypatch: pytest.MonkeyPatch, body: bytes, headers: dict[str, str])
 
 
 def test_get_returns_the_body_and_content_type(monkeypatch: pytest.MonkeyPatch) -> None:
-    from wsindex.connectors.http import _get
+    from thulr.connectors.http import _get
 
     serve(monkeypatch, b"hello", {"Content-Type": "text/plain"})
     assert _get("https://example.invalid/a", {}) == (b"hello", "text/plain")
@@ -343,7 +343,7 @@ def test_get_returns_the_body_and_content_type(monkeypatch: pytest.MonkeyPatch) 
 def test_a_404_is_a_missing_document(monkeypatch: pytest.MonkeyPatch) -> None:
     import urllib.error
 
-    from wsindex.connectors.http import _get
+    from thulr.connectors.http import _get
 
     def raise_404(request: object, timeout: float | None = None) -> None:
         raise urllib.error.HTTPError("https://x", 404, "Not Found", {}, None)  # type: ignore[arg-type]
@@ -356,7 +356,7 @@ def test_a_404_is_a_missing_document(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_another_status_is_a_plain_error(monkeypatch: pytest.MonkeyPatch) -> None:
     import urllib.error
 
-    from wsindex.connectors.http import _get
+    from thulr.connectors.http import _get
 
     def raise_500(request: object, timeout: float | None = None) -> None:
         raise urllib.error.HTTPError("https://x", 500, "Server Error", {}, None)  # type: ignore[arg-type]
@@ -369,7 +369,7 @@ def test_another_status_is_a_plain_error(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_an_unreachable_host_is_a_plain_error(monkeypatch: pytest.MonkeyPatch) -> None:
     import urllib.error
 
-    from wsindex.connectors.http import _get
+    from thulr.connectors.http import _get
 
     def unreachable(request: object, timeout: float | None = None) -> None:
         raise urllib.error.URLError("no route to host")
@@ -380,7 +380,7 @@ def test_an_unreachable_host_is_a_plain_error(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_a_declared_oversize_response_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
-    from wsindex.connectors.http import MAX_BYTES, _get
+    from thulr.connectors.http import MAX_BYTES, _get
 
     serve(monkeypatch, b"x", {"Content-Length": str(MAX_BYTES + 1), "Content-Type": "text/plain"})
     with pytest.raises(ConnectorError, match="larger than the limit"):
@@ -390,7 +390,7 @@ def test_a_declared_oversize_response_is_refused(monkeypatch: pytest.MonkeyPatch
 def test_an_undeclared_oversize_response_is_refused_too(monkeypatch: pytest.MonkeyPatch) -> None:
     # A server that sends no Content-Length would slip past the header
     # check, so the read is bounded at one byte past the limit.
-    from wsindex.connectors.http import MAX_BYTES, _get
+    from thulr.connectors.http import MAX_BYTES, _get
 
     serve(monkeypatch, b"x" * (MAX_BYTES + 1), {"Content-Type": "text/plain"})
     with pytest.raises(ConnectorError, match="larger than"):
@@ -401,34 +401,34 @@ def test_a_token_reaches_the_request(monkeypatch: pytest.MonkeyPatch) -> None:
     # The one thing a token must do: appear as a header. Checked here
     # rather than against GitHub, since a wrong header is a 404 there and
     # 404 is also what a missing document looks like.
-    monkeypatch.setenv("WSINDEX_TEST_TOKEN", "s3cret")
+    monkeypatch.setenv("THULR_TEST_TOKEN", "s3cret")
     seen: dict[str, str] = {}
 
     def capture(url: str, headers: dict[str, str]) -> tuple[bytes, str]:
         seen.update(headers)
         return json.dumps(ISSUE).encode(), "application/json"
 
-    monkeypatch.setattr("wsindex.connectors.github._get", capture)
+    monkeypatch.setattr("thulr.connectors.github._get", capture)
     spec = ConnectorSpec(
-        type="github", url_pattern="https://github.com/org/*", token_env="WSINDEX_TEST_TOKEN"
+        type="github", url_pattern="https://github.com/org/*", token_env="THULR_TEST_TOKEN"
     )
     GitHubConnector(spec).fetch("https://github.com/org/repo/issues/7")
     assert seen["Authorization"] == "Bearer s3cret"
 
 
 def test_the_generic_connector_sends_its_token_too(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("WSINDEX_TEST_TOKEN", "s3cret")
+    monkeypatch.setenv("THULR_TEST_TOKEN", "s3cret")
     seen: dict[str, str] = {}
 
     def capture(url: str, headers: dict[str, str]) -> tuple[bytes, str]:
         seen.update(headers)
         return b"# Notes", "text/markdown"
 
-    monkeypatch.setattr("wsindex.connectors.http._get", capture)
+    monkeypatch.setattr("thulr.connectors.http._get", capture)
     spec = ConnectorSpec(
         type="generic-http",
         url_pattern="https://intranet.invalid/*",
-        token_env="WSINDEX_TEST_TOKEN",
+        token_env="THULR_TEST_TOKEN",
     )
     document = GenericHttpConnector(spec).fetch("https://intranet.invalid/page")
     assert seen["Authorization"] == "Bearer s3cret"

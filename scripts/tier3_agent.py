@@ -7,8 +7,8 @@ somebody finishes the work with less of it.
 
 So: a real agent, the same one on both sides, given a real issue and the
 repository **as it stood before the fix**, and asked to fix it. One side
-has wsindex over MCP and the other does not. Both keep every ordinary
-tool, because a developer with wsindex still has grep and taking it away
+has thulr over MCP and the other does not. Both keep every ordinary
+tool, because a developer with thulr still has grep and taking it away
 would be measuring a straw man.
 
 **What is graded.** The agent's diff against the diff the maintainers
@@ -28,7 +28,7 @@ Usage:
     uv run python scripts/tier3_agent.py --tasks 4 --org caddyserver
 
 Environment:
-    WSINDEX_RELEVANCE_DIR   corpus cache, shared with the other harnesses
+    THULR_RELEVANCE_DIR   corpus cache, shared with the other harnesses
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ import relevance as R  # noqa: E402
 
 CORPUS = HERE / "acceptance_corpus"
 PROTOCOLS = HERE.parent / "docs" / "protocols"
-BINARY = Path(sys.executable).parent / "wsindex"
+BINARY = Path(sys.executable).parent / "thulr"
 CLAUDE = Path.home() / ".local" / "bin" / "claude"
 SCRATCH = R.CACHE / ".tier3agent"
 TRANSCRIPTS = SCRATCH / "transcripts"
@@ -65,7 +65,7 @@ MAX_FILES = 2
 being a place."""
 
 TOOLS = ("Read", "Edit", "Write", "Glob", "Grep", "Bash")
-"""What both sides get. The treatment adds wsindex over MCP and takes
+"""What both sides get. The treatment adds thulr over MCP and takes
 nothing away: a developer with it still has grep, and removing grep
 would measure a straw man rather than a tool.
 
@@ -79,10 +79,10 @@ else's repository with the operator's inbox on its belt, and both arms
 carried two hundred tool definitions of system prompt that had nothing
 to do with the question."""
 
-WS_TOOLS = ("mcp__wsindex__search", "mcp__wsindex__refs", "mcp__wsindex__why")
+WS_TOOLS = ("mcp__thulr__search", "mcp__thulr__refs", "mcp__thulr__why")
 """Allowed on the treatment side only. Without this the server connects,
 the tools are listed, and the first call stops for a permission that
-nothing in a headless run can grant — which would have measured wsindex
+nothing in a headless run can grant — which would have measured thulr
 by never letting it answer."""
 
 ARMS: tuple[str, ...] = ("without", "local", "primed")
@@ -110,7 +110,7 @@ five best answers, closest first:
 They are a starting point and may be wrong; check before trusting one."""
 """What the `primed` arm adds to the task, and nothing else.
 
-`wsindex search -k 5` as it ships, which is about 125 tokens — one line
+`thulr search -k 5` as it ships, which is about 125 tokens — one line
 per hit, a location and the first line of what is there. Deliberately
 not the chunk text: an answer through MCP costs about 2 200 tokens and
 that cost is half of what the tool arm has been losing on. Pointers are
@@ -454,7 +454,7 @@ def primed(home: Path, title: str, prompt: str) -> str:
     done = subprocess.run(
         [str(BINARY), "search", title, "-k", "5"],
         cwd=home,
-        env={**os.environ, "WSINDEX_CONFIG": str(home / "wsindex.toml")},
+        env={**os.environ, "THULR_CONFIG": str(home / "thulr.toml")},
         capture_output=True,
         text=True,
         stdin=subprocess.DEVNULL,
@@ -465,7 +465,7 @@ def primed(home: Path, title: str, prompt: str) -> str:
 
 
 def indexed(where: Path, *, remote: bool = False, repos: list[str] | None = None) -> Path:
-    """A wsindex workspace over this tree, and the MCP config for it.
+    """A thulr workspace over this tree, and the MCP config for it.
 
     `remote` rewrites `[embeddings]` between `init` and `index`, because
     the provider has to be settled before a single chunk is embedded.
@@ -473,8 +473,8 @@ def indexed(where: Path, *, remote: bool = False, repos: list[str] | None = None
     home = where.parent / f"{where.name}-index"
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True, exist_ok=True)
-    settings = home / "wsindex.toml"
-    env = {**os.environ, "WSINDEX_CONFIG": str(settings)}
+    settings = home / "thulr.toml"
+    env = {**os.environ, "THULR_CONFIG": str(settings)}
 
     def run(*args: str) -> None:
         subprocess.run(
@@ -502,13 +502,13 @@ def indexed(where: Path, *, remote: bool = False, repos: list[str] | None = None
         json.dumps(
             {
                 "mcpServers": {
-                    "wsindex": {
+                    "thulr": {
                         "command": str(BINARY),
                         "args": ["mcp"],
                         # No token here, deliberately. The server inherits
                         # it from this process; a key written into a config
                         # file is a key in somebody's backups.
-                        "env": {"WSINDEX_CONFIG": str(settings)},
+                        "env": {"THULR_CONFIG": str(settings)},
                     }
                 }
             }
@@ -577,8 +577,8 @@ def summarise(calls: dict[str, int]) -> str:
 
 
 def short(name: str) -> str:
-    """`mcp__wsindex__search` is `ws:search`; everything else is itself."""
-    return "ws:" + name.split("__")[-1] if name.startswith("mcp__wsindex__") else name
+    """`mcp__thulr__search` is `ws:search`; everything else is itself."""
+    return "ws:" + name.split("__")[-1] if name.startswith("mcp__thulr__") else name
 
 
 def protocol(
@@ -617,14 +617,14 @@ def protocol(
     lines = [
         "# Tier 3, with an agent — does it finish the work with less?",
         "",
-        f"_{time.strftime('%Y-%m-%d %H:%M')}, wsindex `{sha}`, {len(tasks)} tasks, "
+        f"_{time.strftime('%Y-%m-%d %H:%M')}, thulr `{sha}`, {len(tasks)} tasks, "
         f"{seconds / 60:.0f} min._",
         "",
         "## Conditions",
         "",
         "- One real agent, the same on all three arms, given a real issue and",
         "  the repository **at the commit before the fix**.",
-        "- Every arm keeps every ordinary tool; two of them add wsindex over",
+        "- Every arm keeps every ordinary tool; two of them add thulr over",
         "  MCP and take nothing away — a developer with it still has grep.",
         "- `local` and `primed` read **the same index**, so what differs",
         "  between them is delivery: one is a server the agent may call, the",
@@ -645,7 +645,7 @@ def protocol(
         "",
         "## The gate, declared before the run",
         "",
-        "The arm with wsindex is **ruined** less often than the one without",
+        "The arm with thulr is **ruined** less often than the one without",
         f"it, counted in paired tasks. Ruined is a miss or more than {RUINOUS:,}",
         "tokens — a composite fixed before the run, at three times the median",
         "of the twenty-four-task run that preceded it.",
@@ -659,7 +659,7 @@ def protocol(
         "241 814 and 259 155 tokens, both missing. Random sampling cannot",
         "measure an event that rare, so this run is not random: every task",
         "in it is one ripgrep already drowned on, selected by the control's",
-        "own behaviour and graded against the pull request, with wsindex",
+        "own behaviour and graded against the pull request, with thulr",
         "touching neither end of that.",
         "",
         "## Results",
@@ -686,7 +686,7 @@ def protocol(
         "",
         "Mean calls per task. The question this answers is whether the",
         "treatment *replaced* any reading or merely added to it — the first",
-        "run of this harness found wsindex called once a task on top of an",
+        "run of this harness found thulr called once a task on top of an",
         "unchanged amount of grep, which costs and saves nothing.",
         "",
         "| Tool | " + " | ".join(arms) + " |",

@@ -84,7 +84,7 @@ over one store answer `refs` differently.
    Postgres half skipping itself when no database answers — the pattern
    the tree-sitter tests already use for a missing grammar. `docker compose up -d postgres` is what makes them run.
 
-1. **A shared index with local links says so.** `wsindex status` prints
+1. **A shared index with local links says so.** `thulr status` prints
    a note when `[store] uri` is `s3://` and links are SQLite. Review 6's
    rule: a partial answer must not look whole.
 
@@ -96,7 +96,7 @@ over one store answer `refs` differently.
 
 ## Consequences
 
-- (+) The shared-index scenario that `s3://` and `wsindex serve` exist
+- (+) The shared-index scenario that `s3://` and `thulr serve` exist
   for is whole for the first time.
 - (+) The reason links are not in LanceDB is now written down with
   numbers, and has a threshold: if `dangling` stops being needed and

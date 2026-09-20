@@ -11,10 +11,10 @@ from textwrap import dedent
 import pytest
 
 from helpers import needs_grammar
-from wsindex.ingest import chunk_file
-from wsindex.ingest.languages import REGISTRY
-from wsindex.ingest.text_chunker import chunk_plain
-from wsindex.model import Kind, SourceFile
+from thulr.ingest import chunk_file
+from thulr.ingest.languages import REGISTRY
+from thulr.ingest.text_chunker import chunk_plain
+from thulr.model import Kind, SourceFile
 
 
 def drop_grammar(monkeypatch: pytest.MonkeyPatch, lang: str) -> None:
@@ -48,7 +48,7 @@ def test_doc_markdown_produces_sections() -> None:
 
 def test_code_falls_back_to_plain_windows() -> None:
     # An invented name, not a real language: this used to say "go", which
-    # stopped being true the moment examples/wsindex-lang-go was installed.
+    # stopped being true the moment examples/thulr-lang-go was installed.
     # A core test must not depend on which plugins the machine happens to
     # have, so the precondition is asserted rather than assumed.
     lang = "nolang-for-this-test"

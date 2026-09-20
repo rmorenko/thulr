@@ -1,4 +1,4 @@
-# wsindex for whoever decides whether the code may leave
+# thulr for whoever decides whether the code may leave
 
 ## The short answer
 
@@ -59,15 +59,15 @@ than the rows below it, and not zero.
 
 ## What opens a socket, and when
 
-| When                                     | What goes out                                        | Avoidable                |
-| ---------------------------------------- | ---------------------------------------------------- | ------------------------ |
-| First index on a machine                 | The model is downloaded from the model host (~90 MB) | Yes — pre-seed the cache |
-| Every index and search after             | Nothing                                              | —                        |
-| `wsindex sync` on a repo with a `remote` | Whatever `git fetch` sends                           | Only by not using it     |
-| `[embeddings] provider = "remote"`       | **Every chunk of every repo**                        | Yes — it is off          |
-| `[rank] provider = "remote"`             | The query and ~40 candidate chunks per search        | Yes — it is off          |
-| `[rewrite] enabled = true`               | **The question, and no code** — once per search      | Yes — it is off          |
-| `wsindex serve`                          | Binds a socket you asked it to bind                  | Yes                      |
+| When                                   | What goes out                                        | Avoidable                |
+| -------------------------------------- | ---------------------------------------------------- | ------------------------ |
+| First index on a machine               | The model is downloaded from the model host (~90 MB) | Yes — pre-seed the cache |
+| Every index and search after           | Nothing                                              | —                        |
+| `thulr sync` on a repo with a `remote` | Whatever `git fetch` sends                           | Only by not using it     |
+| `[embeddings] provider = "remote"`     | **Every chunk of every repo**                        | Yes — it is off          |
+| `[rank] provider = "remote"`           | The query and ~40 candidate chunks per search        | Yes — it is off          |
+| `[rewrite] enabled = true`             | **The question, and no code** — once per search      | Yes — it is off          |
+| `thulr serve`                          | Binds a socket you asked it to bind                  | Yes                      |
 
 The model download is once and offline afterwards: loading tries the
 local cache before the network on every subsequent run.
@@ -140,7 +140,7 @@ its vector — so **the index is as sensitive as the source it was built
 from**. Treat it that way when choosing where it lives and who can read
 it, especially with `uri` pointing at shared storage.
 
-`wsindex stats` keeps a local log of the queries this machine asked. It
+`thulr stats` keeps a local log of the queries this machine asked. It
 is local by construction and never written to the link store, because
 that store may be a shared Postgres and one person's questions do not
 belong in a team's database.
@@ -148,8 +148,8 @@ belong in a team's database.
 ## How to check any of this yourself
 
 ```console
-$ wsindex status                     # what is configured, and where the index is
-$ grep -n 'provider\|token_env\|url' wsindex.toml   # anything remote is visible here
+$ thulr status                     # what is configured, and where the index is
+$ grep -n 'provider\|token_env\|url' thulr.toml   # anything remote is visible here
 ```
 
 Nothing above is a claim you have to take on trust, but be precise about
@@ -162,5 +162,5 @@ real model open zero sockets. The two together are the claim; neither is
 on its own.
 
 The config is the only place a remote endpoint can be named, which means
-`grep` over `wsindex.toml` is a complete audit of where this tool may
+`grep` over `thulr.toml` is a complete audit of where this tool may
 talk. That part needs no trust at all.

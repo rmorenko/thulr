@@ -8,8 +8,8 @@ hence `Config.reset()` around every case.
 
 And because library code now reaches for `Config()` on its own, a test
 that never sets one up would send it through discovery, which starts at
-the CWD — under pytest, the repository root, where a real `wsindex.toml`
-lives. Pointing `$WSINDEX_CONFIG` at a file that does not exist makes
+the CWD — under pytest, the repository root, where a real `thulr.toml`
+lives. Pointing `$THULR_CONFIG` at a file that does not exist makes
 discovery come up empty (the override wins over every other mode, and a
 missing target is not a fallback), so `Config()` yields the built-in
 defaults and no test can quietly read the developer's own workspace.
@@ -22,8 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config
-from wsindex.paths import ENV_OVERRIDE
+from thulr.config import Config
+from thulr.paths import ENV_OVERRIDE
 
 
 @pytest.fixture(autouse=True)

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.ingest.git_state import (
+from thulr.ingest.git_state import (
     STATE_FILE,
     STATE_VERSION,
     GitCommandError,
@@ -251,7 +251,7 @@ def test_missing_git_binary_becomes_a_typed_error(
     def explode(*args: object, **kwargs: object) -> object:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
-    monkeypatch.setattr("wsindex.ingest.git_state.subprocess.run", explode)
+    monkeypatch.setattr("thulr.ingest.git_state.subprocess.run", explode)
     with pytest.raises(GitUnavailableError, match="not installed"):
         head_commit(repo)
 
@@ -260,7 +260,7 @@ def test_git_timeout_becomes_a_typed_error(repo: Path, monkeypatch: pytest.Monke
     def hang(*args: object, **kwargs: object) -> object:
         raise subprocess.TimeoutExpired(cmd=["git"], timeout=1.0)
 
-    monkeypatch.setattr("wsindex.ingest.git_state.subprocess.run", hang)
+    monkeypatch.setattr("thulr.ingest.git_state.subprocess.run", hang)
     with pytest.raises(GitUnavailableError, match="timed out"):
         head_commit(repo)
 

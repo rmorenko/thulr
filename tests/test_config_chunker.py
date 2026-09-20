@@ -6,11 +6,11 @@ the no-grammar guard test runs everywhere.
 
 import pytest
 
-from wsindex.ingest.chunker import chunk_file
-from wsindex.ingest.languages import REGISTRY
-from wsindex.ingest.link_extract import links_for
-from wsindex.links import LinkKind, normalised
-from wsindex.model import Chunk, Kind, SourceFile
+from thulr.ingest.chunker import chunk_file
+from thulr.ingest.languages import REGISTRY
+from thulr.ingest.link_extract import links_for
+from thulr.links import LinkKind, normalised
+from thulr.model import Chunk, Kind, SourceFile
 
 TOML = """\
 root_key = "top-level pair"  # inline comment

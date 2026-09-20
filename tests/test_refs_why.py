@@ -1,4 +1,4 @@
-"""`wsindex refs` and `wsindex why`, the consumers of links.
+"""`thulr refs` and `thulr why`, the consumers of links.
 
 Everything the two commands show was recorded by earlier steps — drift
 edges (26), blame edges and commit chunks (27), external references
@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from wsindex.cli import app
-from wsindex.paths import CONFIG_FILE, ENV_OVERRIDE
+from thulr.cli import app
+from thulr.paths import CONFIG_FILE, ENV_OVERRIDE
 
 runner = CliRunner()
 
@@ -129,7 +129,7 @@ def test_refs_needs_a_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv(ENV_OVERRIDE, str(tmp_path / "absent.toml"))
     result = runner.invoke(app, ["refs", "8080"])
     assert result.exit_code == 1
-    assert "wsindex init" in result.output
+    assert "thulr init" in result.output
 
 
 # --- why: definition -> blame -> reasoning -------------------------------
@@ -208,7 +208,7 @@ def test_why_needs_a_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv(ENV_OVERRIDE, str(tmp_path / "absent.toml"))
     result = runner.invoke(app, ["why", "connect"])
     assert result.exit_code == 1
-    assert "wsindex init" in result.output
+    assert "thulr init" in result.output
 
 
 def test_why_survives_a_definition_with_no_blame(
@@ -231,7 +231,7 @@ def test_why_reports_a_commit_whose_message_is_not_indexed(
     # window. Knowing *which* commit still answers "when did this
     # change", so the edge is kept and labelled.
     monkeypatch.setattr(
-        "wsindex.store.lancedb.LanceDBStore.chunk_text", lambda self, dataset_name, *, ids: {}
+        "thulr.store.lancedb.LanceDBStore.chunk_text", lambda self, dataset_name, *, ids: {}
     )
     result = runner.invoke(app, ["why", "connect"])
     assert result.exit_code == 0
@@ -269,11 +269,11 @@ def test_why_labels_a_commit_from_before_this_run(workspace: Path) -> None:
 
 
 def test_why_is_one_library_call(workspace: Path) -> None:
-    # It used to be assembled separately by `wsindex why` and the MCP
+    # It used to be assembled separately by `thulr why` and the MCP
     # tool, from the same three moves — and they had already drifted:
     # one showed three definitions, the other all of them, and only one
     # showed what a commit pointed at.
-    from wsindex.cli import build_pipeline
+    from thulr.cli import build_pipeline
 
     definitions = build_pipeline().why("connect")
 
@@ -282,7 +282,7 @@ def test_why_is_one_library_call(workspace: Path) -> None:
 
 
 def test_a_definition_carries_the_commits_that_wrote_it(workspace: Path) -> None:
-    from wsindex.cli import build_pipeline
+    from thulr.cli import build_pipeline
 
     first = build_pipeline().why("connect")[0]
 
@@ -293,8 +293,8 @@ def test_a_definition_carries_the_commits_that_wrote_it(workspace: Path) -> None
 def test_why_without_links_still_answers(workspace: Path) -> None:
     # A pipeline built without a LinkStore is a valid pipeline; it simply
     # has no authorship to report.
-    from wsindex.cli.composition import build_store, config_or_default
-    from wsindex.pipeline import Pipeline
+    from thulr.cli.composition import build_store, config_or_default
+    from thulr.pipeline import Pipeline
 
     config = config_or_default()
     bare = Pipeline(store=build_store(config), state_dir=config.index_dir, links=None)

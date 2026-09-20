@@ -1,11 +1,11 @@
 # Field trial — twenty real workspaces
 
-wsindex had never been run on a codebase that was not its own. This is
+thulr had never been run on a codebase that was not its own. This is
 what happened when it was: twenty organizations from GitHub, 105
 repositories, 4.4 GB of working trees and full history, and 204 questions
-written down **before** wsindex was allowed to run.
+written down **before** thulr was allowed to run.
 
-It is not a demonstration. Three workspaces are in because wsindex has no
+It is not a demonstration. Three workspaces are in because thulr has no
 grammar for their language, and every search result has a `ripgrep`
 control, because a question `grep` already answers is not a question that
 needs an index.
@@ -21,7 +21,7 @@ is reproducible from here is the method below.
 ## How the questions were made honest
 
 A tester opened each workspace with `Read`, `Glob`, `Grep` and `git log`
-only — **never wsindex** — and wrote twelve questions a developer joining
+only — **never thulr** — and wrote twelve questions a developer joining
 that codebase would ask, together with the true answer (`file:line`) found
 by reading. Those files were written to disk and not edited afterwards.
 
@@ -93,9 +93,9 @@ no entry in the language table, so their files were not chunked as text,
 they were **skipped entirely**. Elixir has a grammar now, and the fifty
 unreachable questions below are what bought it; Scala still does not.
 
-The cure is three lines of `[repos.formats]` config, and `wsindex explain <path>` says exactly that when asked. But `wsindex index` printed
-`files: 30` and nothing else, and `wsindex status` showed three healthy
-repositories. wsindex warns loudly when a grammar *partly* fails to read
+The cure is three lines of `[repos.formats]` config, and `thulr explain <path>` says exactly that when asked. But `thulr index` printed
+`files: 30` and nothing else, and `thulr status` showed three healthy
+repositories. thulr warns loudly when a grammar *partly* fails to read
 one file. It says nothing at all when it skips 93% of a workspace.
 
 For those three, the resulting index is 88%, 96% and 80% commit messages,
@@ -104,7 +104,7 @@ and `search --kind code` answers `no results`.
 ## Does search work?
 
 204 questions, 17 workspaces. Each cell counts answers found at all —
-**default** is `wsindex search -k 10`, **best** is `-k 50 --kind code --kind doc`, **ripgrep** is `rg -l` returning twenty files or fewer.
+**default** is `thulr search -k 10`, **best** is `-k 50 --kind code --kind doc`, **ripgrep** is `rg -l` returning twenty files or fewer.
 
 | Class           | Questions | Default |   Best | ripgrep                            |
 | --------------- | --------: | ------: | -----: | ---------------------------------- |
@@ -114,7 +114,7 @@ and `search --kind code` answers `no results`.
 
 Read the descriptive row twice. **ripgrep found none of them** — so the
 questions are real, and the need for something other than grep is real.
-And wsindex, by default, found five.
+And thulr, by default, found five.
 
 ### Asked again, a pipeline later
 
@@ -176,9 +176,9 @@ candidate pool.
 On the two largest workspaces that indexed, ripgrep starts drowning and
 ranking starts paying:
 
-- **dbeaver** (125 353 chunks): wsindex put **4 of 4** literal answers in
+- **dbeaver** (125 353 chunks): thulr put **4 of 4** literal answers in
   the top three. ripgrep found one, drowned on two.
-- **icsharpcode** (78 440 chunks): wsindex 3 of 4 in the top ten by
+- **icsharpcode** (78 440 chunks): thulr 3 of 4 in the top ten by
   default, 4 of 4 configured. ripgrep found one, drowned on three.
 
 This is the shape of the real case: the bigger the codebase, the less a
@@ -217,7 +217,7 @@ almost nothing.
 
 **Needed: the need is proven, the answer is not delivered.** The control
 found **0 of 102** descriptive answers, so the questions developers
-cannot grep are real and common. wsindex placed **1 of 102** in the top
+cannot grep are real and common. thulr placed **1 of 102** in the top
 three. That is the cell of the table marked *fails at its own job* — and
 it fails at a job that genuinely needs doing.
 

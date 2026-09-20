@@ -37,9 +37,9 @@ coverage.xml
 htmlcov/
 nosetests.xml
 
-# WSIndex artifacts (local index / datasets, self-indexing workspace config)
-.wsindex/
-wsindex.toml
+# Thulr artifacts (local index / datasets, self-indexing workspace config)
+.thulr/
+thulr.toml
 acceptance_report.md
 bench_embedders_report.md
 

@@ -22,15 +22,15 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from wsindex.config import Config, Provider, Repository
-from wsindex.connectors import BUILTIN, Connector, Document
-from wsindex.embed import FakeEmbedder
-from wsindex.pipeline import Pipeline
-from wsindex.server import create_app
-from wsindex.server.api import Busy, RunLog, Writer
-from wsindex.server.metrics import CONTENT_TYPE
-from wsindex.stats import SearchLog
-from wsindex.store import LanceDBStore
+from thulr.config import Config, Provider, Repository
+from thulr.connectors import BUILTIN, Connector, Document
+from thulr.embed import FakeEmbedder
+from thulr.pipeline import Pipeline
+from thulr.server import create_app
+from thulr.server.api import Busy, RunLog, Writer
+from thulr.server.metrics import CONTENT_TYPE
+from thulr.stats import SearchLog
+from thulr.store import LanceDBStore
 
 PY_TEXT = "def greet(name):\n    return f'hello {name}'\n"
 
@@ -63,15 +63,15 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     Config.reset()
     config = Config.default("srv", provider=Provider.FAKE)
     config.add_repo(Repository(id="repo1", path=str(repo)))
-    config.save(tmp_path / "wsindex.toml")
+    config.save(tmp_path / "thulr.toml")
     Config.reset()
-    Config(tmp_path / "wsindex.toml")
+    Config(tmp_path / "thulr.toml")
     return tmp_path
 
 
 @pytest.fixture
 def pipeline(workspace: Path) -> Pipeline:
-    store = LanceDBStore(uri=str(workspace / ".wsindex"), embedder=FakeEmbedder())
+    store = LanceDBStore(uri=str(workspace / ".thulr"), embedder=FakeEmbedder())
     return Pipeline(store=store, state_dir=workspace / "state")
 
 
@@ -244,7 +244,7 @@ def test_adding_a_repo_from_the_page_writes_the_config(client: TestClient, works
     assert response.status_code == 303
     # Written through Config, so the file the CLI reads next is this one.
     Config.reset()
-    assert [repo.id for repo in Config(workspace / "wsindex.toml").repos] == ["repo1", "added"]
+    assert [repo.id for repo in Config(workspace / "thulr.toml").repos] == ["repo1", "added"]
 
 
 def test_a_duplicate_repo_id_is_rejected_by_the_page_too(client: TestClient) -> None:
@@ -299,7 +299,7 @@ def test_a_failing_tick_is_logged_and_does_not_kill_the_thread(app: FastAPI) -> 
     # The ticker is the only thing keeping the index current; a thread
     # that dies on one bad cycle leaves a server answering from a corpus
     # that quietly stops advancing.
-    from wsindex.server import scheduler
+    from thulr.server import scheduler
 
     ticker = scheduler.Ticker(app, interval=0.01)
 
@@ -554,7 +554,7 @@ def test_a_workspace_without_the_mcp_extra_still_serves(
     real_import = builtins.__import__
 
     def refuse(name: str, *args: object, **kwargs: object) -> Any:
-        if name == "wsindex.mcp_server":
+        if name == "thulr.mcp_server":
             raise ImportError("no mcp extra here")
         return real_import(name, *args, **kwargs)  # type: ignore[arg-type]
 
@@ -607,7 +607,7 @@ def test_the_mcp_mount_is_behind_the_same_token(secured: TestClient) -> None:
 def test_a_form_from_another_site_cannot_add_a_repo(client: TestClient) -> None:
     # The open server is the default, so this is the shape that matters:
     # a page on another origin posting the admin form. Measured before
-    # the fix — it rewrote wsindex.toml and returned 303.
+    # the fix — it rewrote thulr.toml and returned 303.
     answer = client.post(
         "/admin/add-repo",
         data={"repo_id": "attacker", "path": "/tmp/anywhere", "remote": "https://evil/x.git"},
@@ -708,17 +708,17 @@ def test_metrics_are_served_in_the_format_a_scraper_expects(client: TestClient) 
 
     assert answer.status_code == 200
     assert answer.headers["content-type"] == CONTENT_TYPE
-    assert samples(answer.text, "wsindex_build_info")[(("version", "0.1.0"),)] == 1.0
+    assert samples(answer.text, "thulr_build_info")[(("version", "0.1.0"),)] == 1.0
 
 
 def test_a_search_over_http_is_counted_by_route(client: TestClient) -> None:
     client.post("/index")
     client.get("/search?q=greet")
 
-    counted = samples(client.get("/metrics").text, "wsindex_http_requests_total")
+    counted = samples(client.get("/metrics").text, "thulr_http_requests_total")
 
     assert counted[(("method", "GET"), ("route", "/search"), ("status", "200"))] == 1
-    runs = samples(client.get("/metrics").text, "wsindex_index_runs_total")
+    runs = samples(client.get("/metrics").text, "thulr_index_runs_total")
     assert runs[(("outcome", "ok"),)] == 1
 
 
@@ -740,7 +740,7 @@ def test_no_query_text_reaches_the_metrics(client: TestClient) -> None:
 def test_an_unmatched_path_does_not_become_a_label(client: TestClient) -> None:
     client.get("/there-is-no-such-endpoint")
 
-    counted = samples(client.get("/metrics").text, "wsindex_http_requests_total")
+    counted = samples(client.get("/metrics").text, "thulr_http_requests_total")
 
     assert (("method", "GET"), ("route", "other"), ("status", "404")) in counted
     assert not any("there-is-no-such" in str(labels) for labels in counted)

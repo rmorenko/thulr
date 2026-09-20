@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "thulr-lang-lua"
+version = "0.1.0"
+description = "Lua language support for thulr, as a worked example of a language plugin."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Thulr contributors" }]
+keywords = ["thulr", "plugin", "lua", "tree-sitter"]
+
+# A plugin owns its grammar. thulr core ships grammars only for the
+# languages it supports itself, so shipping Go support means shipping the
+# dependency that parses Go.
+#
+# A plugin published to PyPI would also declare `thulr>=0.1` here. This
+# one does not, so that `uv pip install -e examples/thulr-lang-lua`
+# works inside the thulr repo without resolving thulr from an index
+# it is not published to.
+dependencies = ["tree-sitter-lua>=0.5,<1"]
+
+# The whole integration surface. hatchling copies this into
+# thulr_lang_lua-0.1.0.dist-info/entry_points.txt at install time, and
+# thulr reads it back with importlib.metadata — see thulr.ingest.plugins.
+[project.entry-points."thulr.languages"]
+lua = "thulr_lang_lua:LANGUAGES"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/thulr_lang_lua"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

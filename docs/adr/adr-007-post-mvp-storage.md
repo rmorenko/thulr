@@ -46,7 +46,7 @@ the facts this decision rests on:
 ## Decision
 
 1. **LanceDB (embedded) is the only vector store.** The storage
-   location is a uri in `wsindex.toml` (`[store] uri` — a local path
+   location is a uri in `thulr.toml` (`[store] uri` — a local path
    or `s3://bucket/prefix`). Credentials, endpoint and `allow_http`
    come exclusively from the environment (standard `AWS_*`
    variables); a local-path uri requires no environment at all.

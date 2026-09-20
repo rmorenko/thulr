@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from wsindex.model import Chunk, Hit, Kind, SourceFile
+from thulr.model import Chunk, Hit, Kind, SourceFile
 
 
 def make_chunk(**overrides: Any) -> Chunk:

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.ingest.walker import (
+from thulr.ingest.walker import (
     IGNORED_DIRS,
     MAX_FILE_SIZE,
     SKIP_REASONS,
@@ -20,7 +20,7 @@ from wsindex.ingest.walker import (
     examine,
     inspect_file,
 )
-from wsindex.model import Kind
+from thulr.model import Kind
 
 
 def selected(root: Path) -> list[WalkedFile]:

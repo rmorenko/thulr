@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.ingest.git_state import GitCommandError, NotAGitRepositoryError
-from wsindex.ingest.git_sync import SyncOutcome, sync_repo
+from thulr.ingest.git_state import GitCommandError, NotAGitRepositoryError
+from thulr.ingest.git_sync import SyncOutcome, sync_repo
 
 GitRunner = Callable[..., str]
 

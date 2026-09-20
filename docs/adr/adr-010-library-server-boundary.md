@@ -10,7 +10,7 @@ was written first.
 
 ## Context
 
-wsindex is a local CLI. The plan (Этап 11) adds a second way to run it —
+thulr is a local CLI. The plan (Этап 11) adds a second way to run it —
 a shared server with an admin page that syncs and re-indexes on a
 schedule — and the whole value of that addition depends on one property
 being kept: **the engine stays a library, and the server is a thin layer

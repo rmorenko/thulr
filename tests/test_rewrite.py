@@ -16,8 +16,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from wsindex.rewrite import FakeRewriter
-from wsindex.rewrite.remote import MAX_WORDS, RemoteRewriter, _phrases
+from thulr.rewrite import FakeRewriter
+from thulr.rewrite.remote import MAX_WORDS, RemoteRewriter, _phrases
 
 
 def test_a_short_question_yields_nothing_rather_than_noise() -> None:
@@ -70,8 +70,8 @@ def test_a_rewriter_that_cannot_reach_its_model_costs_no_answers(
     def dead(url: str, **kwargs: object) -> object:
         raise httpx.ConnectError("nothing is listening")
 
-    monkeypatch.setattr("wsindex.rewrite.remote.httpx.post", dead)
-    monkeypatch.setattr("wsindex.rewrite.remote.time.sleep", lambda _: None)
+    monkeypatch.setattr("thulr.rewrite.remote.httpx.post", dead)
+    monkeypatch.setattr("thulr.rewrite.remote.time.sleep", lambda _: None)
 
     assert RemoteRewriter(model="m", url="http://nowhere").rewrite("where is retry") == []
 
@@ -103,7 +103,7 @@ def test_a_local_server_needs_no_token(monkeypatch: pytest.MonkeyPatch) -> None:
 
         return Reply()
 
-    monkeypatch.setattr("wsindex.rewrite.remote.httpx.post", fake_post)
+    monkeypatch.setattr("thulr.rewrite.remote.httpx.post", fake_post)
     rewriter = RemoteRewriter(model="m", url="http://localhost:11434/v1/chat/completions")
 
     assert rewriter.rewrite("where is retry") == ["retry backoff settings here"]
@@ -120,10 +120,10 @@ def test_the_question_is_always_asked_and_the_lists_are_fused(
     cut and both corpora. So the question is not one option among
     several — it is always asked, and always first.
     """
-    from wsindex.config import Config, Provider, Repository
-    from wsindex.embed import FakeEmbedder
-    from wsindex.pipeline import Pipeline
-    from wsindex.store import LanceDBStore
+    from thulr.config import Config, Provider, Repository
+    from thulr.embed import FakeEmbedder
+    from thulr.pipeline import Pipeline
+    from thulr.store import LanceDBStore
 
     for name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"):
         monkeypatch.setenv(name, "/dev/null")

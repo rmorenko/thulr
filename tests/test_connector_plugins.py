@@ -19,8 +19,8 @@ from importlib.metadata import EntryPoint
 import pytest
 
 from connector_fixture import FixtureConnector
-from wsindex.connectors import Connector, ConnectorFactory, ConnectorSpec, route
-from wsindex.connectors.plugins import (
+from thulr.connectors import Connector, ConnectorFactory, ConnectorSpec, route
+from thulr.connectors.plugins import (
     ENTRY_POINT_GROUP,
     ConnectorLoadWarning,
     load_connectors,
@@ -39,7 +39,7 @@ def advertise(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
 
     def install(*points: EntryPoint) -> None:
         monkeypatch.setattr(
-            "wsindex.connectors.plugins.entry_points",
+            "thulr.connectors.plugins.entry_points",
             lambda group: tuple(p for p in points if p.group == group),
         )
 
@@ -66,7 +66,7 @@ def test_a_plugin_registers_its_type(
 def test_the_entry_point_name_is_the_config_type(
     registry: dict[str, ConnectorFactory], advertise: Callable[..., None]
 ) -> None:
-    # The whole integration: a `type =` in wsindex.toml reaches a class
+    # The whole integration: a `type =` in thulr.toml reaches a class
     # in a package the core has never heard of.
     advertise(ep("fixture", "connector_fixture:FixtureConnector"))
     load_connectors(registry, group=GROUP)
@@ -179,15 +179,15 @@ def test_two_plugins_claiming_one_type_do_not_shadow_each_other(
 def test_plugins_load_on_the_first_route_not_on_import(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Importing wsindex must not import plugins: a plugin imports
-    # wsindex, so doing it on the way up re-enters the plugin
+    # Importing thulr must not import plugins: a plugin imports
+    # thulr, so doing it on the way up re-enters the plugin
     # half-executed and silently disables it.
-    import wsindex.connectors as package
+    import thulr.connectors as package
 
     calls: list[int] = []
     monkeypatch.setattr(package, "_plugins_loaded", False)
     monkeypatch.setattr(
-        "wsindex.connectors.plugins.load_connectors", lambda registry=None: calls.append(1)
+        "thulr.connectors.plugins.load_connectors", lambda registry=None: calls.append(1)
     )
 
     package.route("https://example.invalid/a", [])
@@ -200,12 +200,12 @@ def test_a_plugin_imported_first_still_registers() -> None:
     # The regression itself, in the only place it can be reproduced: a
     # fresh interpreter, with the import order that used to break it.
     # Skipped rather than asserted when the example is not installed —
-    # the claim is about wsindex, not about this machine.
-    if importlib.util.find_spec("wsindex_connector_notion") is None:
+    # the claim is about thulr, not about this machine.
+    if importlib.util.find_spec("thulr_connector_notion") is None:
         pytest.skip("example connector plugin not installed (uv run poe example-plugin)")
     program = (
-        "import wsindex_connector_notion\n"
-        "from wsindex.connectors import ConnectorSpec, route\n"
+        "import thulr_connector_notion\n"
+        "from thulr.connectors import ConnectorSpec, route\n"
         "spec = ConnectorSpec(type='notion', url_pattern='https://www.notion.so/*')\n"
         "url = 'https://www.notion.so/o/Page-1f2e3d4c5b6a7890abcdef1234567890'\n"
         "assert route(url, [spec]) is not None, 'plugin did not register'\n"
@@ -214,4 +214,4 @@ def test_a_plugin_imported_first_still_registers() -> None:
 
 
 def test_the_group_is_the_one_the_documentation_names() -> None:
-    assert ENTRY_POINT_GROUP == "wsindex.connectors"
+    assert ENTRY_POINT_GROUP == "thulr.connectors"

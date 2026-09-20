@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config, Repository
-from wsindex.domains import (
+from thulr.config import Config, Repository
+from thulr.domains import (
     COUPLED_FROM,
     NEIGHBOURS,
     analyse,
@@ -24,9 +24,9 @@ from wsindex.domains import (
     package_of,
     source_prefix,
 )
-from wsindex.embed import FakeEmbedder
-from wsindex.pipeline import Pipeline
-from wsindex.store import LanceDBStore
+from thulr.embed import FakeEmbedder
+from thulr.pipeline import Pipeline
+from thulr.store import LanceDBStore
 
 # --- naming the package a file belongs to ---------------------------------
 
@@ -34,10 +34,10 @@ from wsindex.store import LanceDBStore
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        ("src/wsindex/store/base.py", "store"),
-        ("src/wsindex/ingest/ast/core.py", "ingest"),
-        ("src/wsindex/pipeline.py", "(root)"),
-        ("src/wsindex/__init__.py", "(root)"),
+        ("src/thulr/store/base.py", "store"),
+        ("src/thulr/ingest/ast/core.py", "ingest"),
+        ("src/thulr/pipeline.py", "(root)"),
+        ("src/thulr/__init__.py", "(root)"),
     ],
 )
 def test_a_file_is_named_by_its_directory_not_its_own_name(path: str, expected: str) -> None:
@@ -49,11 +49,11 @@ def test_a_file_is_named_by_its_directory_not_its_own_name(path: str, expected: 
 def test_the_depth_is_derived_from_the_layout_not_assumed() -> None:
     """A constant here fits one project and misreads the next.
 
-    `src/wsindex/store/base.py` wants level 2 and `src/alpha/one.py`
+    `src/thulr/store/base.py` wants level 2 and `src/alpha/one.py`
     wants level 1. A default of either reports the other as a
     single-package repository, which is what the first version did.
     """
-    deep = ["src/wsindex/store/base.py", "src/wsindex/cli/init.py", "src/wsindex/pipeline.py"]
+    deep = ["src/thulr/store/base.py", "src/thulr/cli/init.py", "src/thulr/pipeline.py"]
     shallow = ["src/alpha/one.py", "src/beta/two.py", "src/six.py"]
 
     assert branching_depth(deep) == 2

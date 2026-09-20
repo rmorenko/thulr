@@ -1,4 +1,4 @@
-# BRD — Business Requirements Document: WSIndex (Workspace Indexer)
+# BRD — Business Requirements Document: Thulr (Workspace Indexer)
 
 > **A record of intent, not of the current build.** This document says
 > what was asked for when it was written. Much of it came true; the
@@ -17,7 +17,7 @@
 
 | Field            | Value                                                                   |
 | ---------------- | ----------------------------------------------------------------------- |
-| Product          | WSIndex (Workspace Indexer) — working title                             |
+| Product          | Thulr (Workspace Indexer) — working title                               |
 | Document version | 1.1                                                                     |
 | Date             | 2026-07-29                                                              |
 | Status           | Approved for MVP (Phase 1)                                              |
@@ -28,7 +28,7 @@ ______________________________________________________________________
 
 ## 1. Document purpose and scope
 
-This BRD captures the **business requirements** for the educational project WSIndex — a Python CLI application that indexes a developer's workspace (a set of git repositories) and provides semantic search over it. The document answers the question of "**what** we are doing and **why**", but not "**how** exactly" — the details of classes, API-call schemas, and algorithms are elaborated in the accompanying documents (VISION, ARCHITECTURE, THEORY).
+This BRD captures the **business requirements** for the educational project Thulr — a Python CLI application that indexes a developer's workspace (a set of git repositories) and provides semantic search over it. The document answers the question of "**what** we are doing and **why**", but not "**how** exactly" — the details of classes, API-call schemas, and algorithms are elaborated in the accompanying documents (VISION, ARCHITECTURE, THEORY).
 
 Document scope:
 
@@ -43,7 +43,7 @@ ______________________________________________________________________
 
 ## 2. Context and problem
 
-A modern developer almost never works in a single repository. A typical workspace is **dozens of repositories within one organization**, written in different languages. An illustrative corpus example for WSIndex is the organization **github.com/tensorus**: the repositories `tensorus`, `mcp`, `samples`, `datasets`, `models`, `tensorus-website`, `v1`, `v1_web`, `v1_docs`. This is a polyglot space (Python, Rust, TypeScript) with code, configs, and documentation.
+A modern developer almost never works in a single repository. A typical workspace is **dozens of repositories within one organization**, written in different languages. An illustrative corpus example for Thulr is the organization **github.com/tensorus**: the repositories `tensorus`, `mcp`, `samples`, `datasets`, `models`, `tensorus-website`, `v1`, `v1_web`, `v1_docs`. This is a polyglot space (Python, Rust, TypeScript) with code, configs, and documentation.
 
 **The problem.** When you need to understand "where has this already been done", "where is such-and-such symbol defined", "where is this configured", a developer is forced to:
 
@@ -53,7 +53,7 @@ A modern developer almost never works in a single repository. A typical workspac
 
 Full-text search does not answer a question posed in **natural language** ("how is the metric configured for a dataset?"), and it does not semantically connect closely related fragments from different repositories. At the same time, an increasing share of queries against the codebase come not from a human but from **AI agents**, who need programmatic access to relevant fragments as context.
 
-**What WSIndex does.** A developer or an AI agent poses a question in natural language (or as a code fragment) and receives relevant fragments **from several repositories at once** — code, configs, documentation — with the source indicated. Everything runs **locally and self-hosted**: the code never leaves the machine. An illustrative growth scenario (a goal, not the MVP): "where is the tensorus API called and what will break if the signature changes" — connecting `mcp`/`samples` → `tensorus`.
+**What Thulr does.** A developer or an AI agent poses a question in natural language (or as a code fragment) and receives relevant fragments **from several repositories at once** — code, configs, documentation — with the source indicated. Everything runs **locally and self-hosted**: the code never leaves the machine. An illustrative growth scenario (a goal, not the MVP): "where is the tensorus API called and what will break if the signature changes" — connecting `mcp`/`samples` → `tensorus`.
 
 **Educational context.** The project simultaneously addresses a second objective — a **learning** one: to go through Retrieval-Augmented Generation (RAG) end to end, to master AST-chunking, vector databases, and the design of clean interfaces on a meaningful rather than a toy example.
 
@@ -61,7 +61,7 @@ ______________________________________________________________________
 
 ## 3. Stakeholders
 
-| Role                       | Who this is                               | Interest / what matters                                                                                            | How WSIndex addresses it                                                                   |
+| Role                       | Who this is                               | Interest / what matters                                                                                            | How Thulr addresses it                                                                     |
 | -------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
 | **Student author**         | The project's developer                   | Go through RAG end-to-end, master AST-chunking, vector DBs, clean interfaces; produce a readable portfolio project | Simple, pedagogical architecture; linear pipeline; Embedder/Chunker/VectorStore interfaces |
 | **Future developer users** | Engineers working with multi-repo setups  | Quickly find code/configs/docs by meaning, locally and offline                                                     | CLI commands `index`/`search`; multi-repo index; "repo/path:lines" output                  |
@@ -92,7 +92,7 @@ The goals are deliberately split into **educational** (primary right now) and **
 | ----- | ------------------------------- | --------------------------------------------------------------------------------------------------- |
 | BG-P1 | Usefulness of cross-repo search | The share of queries where the needed fragment lands in top-k grows as structural filters are added |
 | BG-P2 | Readiness for scale             | The index performs adequately on tens of thousands of chunks; hot paths are moved to Rust (E5)      |
-| BG-P3 | Value for AI agents             | WSIndex is used as a context source for an agent/MCP                                                |
+| BG-P3 | Value for AI agents             | Thulr is used as a context source for an agent/MCP                                                  |
 | BG-P4 | Ranking quality                 | Tensor re-rank (MaxSim / late interaction) improves the output order versus single-vector (E3)      |
 
 Product metrics are **not** MVP acceptance criteria; they orient the roadmap.

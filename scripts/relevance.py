@@ -13,7 +13,7 @@ certified against it.
 So this is a second instrument with three properties the first lacks:
 
 **The questions were written blind.** A tester explored each workspace
-with reading and grep only, never running wsindex, and wrote down the
+with reading and grep only, never running thulr, and wrote down the
 questions a newcomer would ask with the answer found by reading. Six of
 the twelve per workspace describe a behaviour using no word that appears
 in the answer file, checked as a substring. They are in
@@ -34,7 +34,7 @@ written; a floating clone would rot the answers silently.
 
 **There is a control.** Every question also goes to ripgrep. A question
 grep already answers is not evidence for an index, and without the
-control this becomes another way of grading wsindex against itself.
+control this becomes another way of grading thulr against itself.
 
 Usage:
     uv run poe relevance          # routine tier, 60 questions
@@ -46,10 +46,10 @@ Usage:
     uv run poe relevance -- --check scripts/relevance_baseline.json
 
 Environment:
-    WSINDEX_RELEVANCE_DIR   corpus cache (default: ~/.cache/wsindex-relevance)
-    WSINDEX_MODEL           model id to grade instead of the default
-    WSINDEX_QUERY_PREFIX    that model's query instruction, if it wants one
-    WSINDEX_TRUST_REMOTE    "1" to let that model run its own code
+    THULR_RELEVANCE_DIR   corpus cache (default: ~/.cache/thulr-relevance)
+    THULR_MODEL           model id to grade instead of the default
+    THULR_QUERY_PREFIX    that model's query instruction, if it wants one
+    THULR_TRUST_REMOTE    "1" to let that model run its own code
 """
 
 from __future__ import annotations
@@ -68,15 +68,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import wsindex
-from wsindex.cli.composition import _reranker, build_store
-from wsindex.config import Config, Repository
-from wsindex.model import Hit, Kind, SearchFilter
-from wsindex.pipeline import Pipeline
+import thulr
+from thulr.cli.composition import _reranker, build_store
+from thulr.config import Config, Repository
+from thulr.model import Hit, Kind, SearchFilter
+from thulr.pipeline import Pipeline
 
 HERE = Path(__file__).resolve().parent
 CORPUS = HERE / "acceptance_corpus"
-CACHE = Path(os.environ.get("WSINDEX_RELEVANCE_DIR", Path.home() / ".cache" / "wsindex-relevance"))
+CACHE = Path(os.environ.get("THULR_RELEVANCE_DIR", Path.home() / ".cache" / "thulr-relevance"))
 
 Repo = dict[str, str]
 """One pinned repository from `acceptance_corpus/corpus.json`."""
@@ -85,7 +85,7 @@ Baseline = dict[str, object]
 """A saved run: the model it used, the tier, and the counts per class."""
 
 DEFAULT_K = 10
-"""What `wsindex search` gives a person who types nothing extra."""
+"""What `thulr search` gives a person who types nothing extra."""
 
 DEEP_K = 50
 """The deep list, with history filtered out.
@@ -101,15 +101,15 @@ Above this the developer is reading a list, which is the work ranking
 exists to remove, so it counts as a partial win for the index rather than
 a win for the control."""
 
-RG = os.environ.get("WSINDEX_RG") or shutil.which("rg")
+RG = os.environ.get("THULR_RG") or shutil.which("rg")
 """The control binary.
 
-`WSINDEX_RG` exists because a machine may have ripgrep only as a shell
+`THULR_RG` exists because a machine may have ripgrep only as a shell
 function forwarding to a bundled copy, which `which` cannot see. It is
 invoked with `argv[0]` forced to `rg` (see `control`), so the escape hatch
 works for a wrapper as well as for a real install. When neither is found
 the report says the control did not run — scoring it as a miss would
-hand wsindex a win it did not earn."""
+hand thulr a win it did not earn."""
 
 
 @dataclass
@@ -155,7 +155,7 @@ def covered(pipeline: Pipeline, repo: str, path: str, lines: list[int]) -> bool:
     """Whether any indexed chunk holds the lines the answer lives on.
 
     Counted apart from ranking, because mixing them hides both. Twelve of
-    the eighty-four questions are about files wsindex never indexed —
+    the eighty-four questions are about files thulr never indexed —
     eleven in an Elixir workspace with no grammar, one a `Makefile` — and
     scoring those as retrieval failures taxed every model the step 4
     spike graded, equally and invisibly. Worse, it would make a future
@@ -354,7 +354,7 @@ def best_control(root: Path, question: str, truth: str) -> tuple[str, int, str]:
     ripgrep is reported — found beats drowned beats missed, fewer files
     breaks a tie. That is deliberately generous. A harvested question has
     no hand-written `rg_query`, and inventing a weak one would make
-    wsindex look good by beating a control nobody would have typed.
+    thulr look good by beating a control nobody would have typed.
 
     Returns:
         Outcome, how many files that query returned, and the query.
@@ -443,13 +443,13 @@ def vector_key(org: str, repos: list[Repo], config: Config) -> str:
     the failure the unconditional wipe prevented, and it fails *silently*
     — the numbers come out plausible and wrong.
 
-    `WSINDEX_INDEX_TAG` is the escape hatch for what a hash of the source
+    `THULR_INDEX_TAG` is the escape hatch for what a hash of the source
     cannot see. `probes/ast_vs_text.py` takes the parser away at runtime
     by assigning to `REGISTRY.parser`; no file changes, so nothing here
     would notice, and the AST arm's index would be served to the windows
     arm. A probe that alters behaviour from outside has to say so.
     """
-    package = Path(wsindex.__file__).parent
+    package = Path(thulr.__file__).parent
     digests = []
     for name in VECTOR_SOURCES:
         target = package / name
@@ -462,7 +462,7 @@ def vector_key(org: str, repos: list[Repo], config: Config) -> str:
         "repos": {repo["id"]: repo["sha"] for repo in repos},
         "embeddings": dict(config._data.get("embeddings", {})),
         "hybrid": config._data.get("store", {}).get("hybrid"),
-        "tag": os.environ.get("WSINDEX_INDEX_TAG", ""),
+        "tag": os.environ.get("THULR_INDEX_TAG", ""),
         "sources": digests,
     }
     return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
@@ -558,14 +558,14 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     cache makes `index()` a no-op over an unchanged workspace, so a probe
     collecting chunks as a side effect of embedding them collects
     nothing — and then compares two arms that are the same arm. That has
-    already happened once and cost an hour: set `WSINDEX_REINDEX=1`
+    already happened once and cost an hour: set `THULR_REINDEX=1`
     around the pass that watches.
 
     The index is kept between runs when `vector_key` is unchanged, and
     wiped otherwise. This is not an optimisation of convenience: a hosted
     embedder takes about fifty minutes and real money to embed this
     corpus once, and an instrument that expensive to run is an instrument
-    that gets run less often than the question deserves. `WSINDEX_REINDEX=1`
+    that gets run less often than the question deserves. `THULR_REINDEX=1`
     forces the wipe.
     """
     # `Config.default` replaces the process-wide instance, which is what a
@@ -574,43 +574,43 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     # Overridable so a model can be graded through the real configuration
     # path rather than a spike's own wiring — the point of step 5 is that
     # choosing a model is a config line, and this proves it is one.
-    if os.environ.get("WSINDEX_MODEL"):
+    if os.environ.get("THULR_MODEL"):
         # Reaching into the document rather than through a setter, and
         # saying so: `Config` has no writer for these, because a workspace
         # writes them once by hand. A measuring script is the one caller
         # that wants to change them per run.
         config._data["embeddings"].update(
             {
-                "model": os.environ["WSINDEX_MODEL"],
-                "dim": int(os.environ.get("WSINDEX_DIM", "768")),
-                "query_prefix": os.environ.get("WSINDEX_QUERY_PREFIX", ""),
-                "trust_remote_code": os.environ.get("WSINDEX_TRUST_REMOTE") == "1",
+                "model": os.environ["THULR_MODEL"],
+                "dim": int(os.environ.get("THULR_DIM", "768")),
+                "query_prefix": os.environ.get("THULR_QUERY_PREFIX", ""),
+                "trust_remote_code": os.environ.get("THULR_TRUST_REMOTE") == "1",
                 **(
-                    {"max_seq": int(os.environ["WSINDEX_MAX_SEQ"])}
-                    if os.environ.get("WSINDEX_MAX_SEQ")
+                    {"max_seq": int(os.environ["THULR_MAX_SEQ"])}
+                    if os.environ.get("THULR_MAX_SEQ")
                     else {}
                 ),
             }
         )
-    if os.environ.get("WSINDEX_PROVIDER"):
+    if os.environ.get("THULR_PROVIDER"):
         # The hosted path, same three settings a workspace would write.
         # Measuring it through a probe's own client would measure the
         # probe; this way the thing graded is the thing that ships.
         config._data["embeddings"].update(
             {
-                "provider": os.environ["WSINDEX_PROVIDER"],
-                "url": os.environ.get("WSINDEX_EMBED_URL", ""),
-                "token_env": os.environ.get("WSINDEX_EMBED_TOKEN_ENV", ""),
-                "input_types": os.environ.get("WSINDEX_INPUT_TYPES") == "1",
+                "provider": os.environ["THULR_PROVIDER"],
+                "url": os.environ.get("THULR_EMBED_URL", ""),
+                "token_env": os.environ.get("THULR_EMBED_TOKEN_ENV", ""),
+                "input_types": os.environ.get("THULR_INPUT_TYPES") == "1",
             }
         )
-    if os.environ.get("WSINDEX_RANK_MODEL"):
+    if os.environ.get("THULR_RANK_MODEL"):
         config._data["rank"] = {
             "enabled": True,
-            "model": os.environ["WSINDEX_RANK_MODEL"],
-            "provider": os.environ.get("WSINDEX_RANK_PROVIDER", "sentence-transformers"),
-            "url": os.environ.get("WSINDEX_RANK_URL", ""),
-            "token_env": os.environ.get("WSINDEX_RANK_TOKEN_ENV", ""),
+            "model": os.environ["THULR_RANK_MODEL"],
+            "provider": os.environ.get("THULR_RANK_PROVIDER", "sentence-transformers"),
+            "url": os.environ.get("THULR_RANK_URL", ""),
+            "token_env": os.environ.get("THULR_RANK_TOKEN_ENV", ""),
         }
     for repo in repos:
         config.add_repo(Repository(id=repo["id"], path=str(root / repo["id"])))
@@ -624,7 +624,7 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     state = CACHE / ".index" / org / key[:12]
     _evict(CACHE / ".index" / org, keep=state)
     kept = (state / "key").is_file() and (state / "key").read_text(encoding="utf-8") == key
-    if os.environ.get("WSINDEX_REINDEX") == "1" or not kept:
+    if os.environ.get("THULR_REINDEX") == "1" or not kept:
         shutil.rmtree(state, ignore_errors=True)
     else:
         # Touched on use, so eviction is by *last used* rather than by
@@ -632,7 +632,7 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
         # and without this the arm run most often would be the first one
         # thrown away.
         (state / "key").touch()
-        if os.environ.get("WSINDEX_QUIET") != "1":
+        if os.environ.get("THULR_QUIET") != "1":
             print(f"    reusing the index of {org}", flush=True)
     state.mkdir(parents=True, exist_ok=True)
     _IN_USE.add(state)
@@ -643,7 +643,7 @@ def build(org: str, repos: list[Repo], root: Path) -> Pipeline:
     # table, and `0` had no spelling at all until now — the "hybrid
     # turned off" row could be published but not reproduced, which is the
     # same fault the unpinned ripgrep had.
-    if (hybrid := os.environ.get("WSINDEX_HYBRID")) in ("0", "1"):
+    if (hybrid := os.environ.get("THULR_HYBRID")) in ("0", "1"):
         config._data["store"]["hybrid"] = hybrid == "1"
     # Built by the composition root, not here. The real model, the real
     # provider switch, the real reranker wiring — so that changing a
@@ -992,7 +992,7 @@ def main() -> int:
         # rather than left to surface as an empty column.
         print(
             "no ripgrep on PATH, and every number here is read against it — "
-            "install it or point $WSINDEX_RG at the binary",
+            "install it or point $THULR_RG at the binary",
             file=sys.stderr,
         )
         return 2

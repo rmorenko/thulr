@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from helpers import needs_grammar
-from wsindex.ingest import REGISTRY, chunk_file
-from wsindex.model import Chunk, Kind, SourceFile
+from thulr.ingest import REGISTRY, chunk_file
+from thulr.model import Chunk, Kind, SourceFile
 
 if TYPE_CHECKING:
     from tree_sitter import Node
@@ -226,8 +226,8 @@ def test_a_broken_component_does_not_crash() -> None:
 def test_a_container_spec_may_not_also_have_spans() -> None:
     # A container's parts are chunked by their own languages; an
     # extractor on top would claim the same lines twice.
-    from wsindex.ingest.ast.core import Span
-    from wsindex.ingest.languages import (
+    from thulr.ingest.ast.core import Span
+    from thulr.ingest.languages import (
         GrammarSpec,
         LanguageRegistry,
         LanguageSpec,
@@ -257,7 +257,7 @@ def test_a_container_spec_may_not_also_have_spans() -> None:
 def test_a_container_spec_needs_a_grammar() -> None:
     # The splitter is handed a parse tree; without a grammar there is
     # nothing to hand it.
-    from wsindex.ingest.languages import LanguageRegistry, LanguageSpec, Section
+    from thulr.ingest.languages import LanguageRegistry, LanguageSpec, Section
 
     def noop_sections(root: Node, lines: list[str]) -> list[Section]:
         return []
@@ -273,7 +273,7 @@ def test_a_container_spec_needs_a_grammar() -> None:
 
 @needs_grammar("vue")
 def test_container_specs_report_themselves_as_containers() -> None:
-    from wsindex.ingest.languages import REGISTRY as R
+    from thulr.ingest.languages import REGISTRY as R
 
     vue = R.get("vue")
     assert vue is not None

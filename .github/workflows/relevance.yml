@@ -11,13 +11,13 @@ name: Relevance
 on:
   pull_request:
     paths:
-      - src/wsindex/pipeline.py
-      - src/wsindex/run.py
-      - src/wsindex/embed/**
-      - src/wsindex/store/**
-      - src/wsindex/rank/**
-      - src/wsindex/ingest/**
-      - src/wsindex/model.py
+      - src/thulr/pipeline.py
+      - src/thulr/run.py
+      - src/thulr/embed/**
+      - src/thulr/store/**
+      - src/thulr/rank/**
+      - src/thulr/ingest/**
+      - src/thulr/model.py
       - scripts/relevance.py
       - scripts/acceptance_corpus/**
       - scripts/relevance_baseline.json
@@ -53,7 +53,7 @@ jobs:
         run: uv sync --extra ast --extra ml
 
       # ripgrep is the control. Without it the report says the control did
-      # not run rather than scoring wsindex against itself, but a run with
+      # not run rather than scoring thulr against itself, but a run with
       # no control is half a measurement, so install it.
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/wsindex-relevance
+            ~/.cache/thulr-relevance
             ~/.cache/huggingface
           key: relevance-${{ hashFiles('scripts/acceptance_corpus/corpus.json') }}
           restore-keys: relevance-

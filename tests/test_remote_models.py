@@ -15,8 +15,8 @@ from typing import Any
 import httpx
 import pytest
 
-from wsindex.embed.remote import RemoteEmbedder
-from wsindex.rank.remote import RemoteReranker
+from thulr.embed.remote import RemoteEmbedder
+from thulr.rank.remote import RemoteReranker
 
 
 class Recorder:
@@ -143,7 +143,7 @@ def test_a_rate_limit_is_retried_and_a_bad_key_is_not(
     # 429 passes; 401 never will, and retrying it six times only makes the
     # failure slower to read.
     monkeypatch.setenv("TEST_EMBED_KEY", "k")
-    monkeypatch.setattr("wsindex.embed.remote.httpx_sleep", lambda _: None)
+    monkeypatch.setattr("thulr.embed.remote.httpx_sleep", lambda _: None)
     patient = Recorder(429, VECTORS)
     monkeypatch.setattr(httpx, "post", patient)
     assert embedder().embed(["x"]) == [[0.1, 0.2, 0.3]]

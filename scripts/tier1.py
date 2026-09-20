@@ -28,7 +28,7 @@ Usage:
     uv run python scripts/tier1.py --all           # every workspace
 
 Environment:
-    WSINDEX_RELEVANCE_DIR   corpus cache, shared with relevance.py
+    THULR_RELEVANCE_DIR   corpus cache, shared with relevance.py
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 CORPUS = HERE / "acceptance_corpus"
-CACHE = Path(os.environ.get("WSINDEX_RELEVANCE_DIR", Path.home() / ".cache" / "wsindex-relevance"))
+CACHE = Path(os.environ.get("THULR_RELEVANCE_DIR", Path.home() / ".cache" / "thulr-relevance"))
 PROTOCOLS = HERE.parent / "docs" / "protocols"
 
 SMALLEST = "DatabaseCleaner"
@@ -56,7 +56,7 @@ SMALLEST = "DatabaseCleaner"
 whether a command is honest, and honesty does not need a large corpus —
 the tiers that do are 2 and 3."""
 
-BINARY = Path(sys.executable).parent / "wsindex"
+BINARY = Path(sys.executable).parent / "thulr"
 """The installed console script, beside the interpreter running this."""
 
 TIMEOUT = 1800.0
@@ -94,7 +94,7 @@ class Run:
     facts: dict[str, Any] = field(default_factory=dict)
 
 
-def wsindex(*args: str, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def thulr(*args: str, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     """One invocation of the real CLI, never of an import.
 
     A subprocess against the installed entry point, not an import and
@@ -171,7 +171,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     home = CACHE / ".tier1" / org
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True, exist_ok=True)
-    env = {"WSINDEX_CONFIG": str(home / "wsindex.toml"), "PYTHONPATH": str(HERE.parent / "src")}
+    env = {"THULR_CONFIG": str(home / "thulr.toml"), "PYTHONPATH": str(HERE.parent / "src")}
     run = Run(org=org)
 
     def record(command: str, claim: str, fn: Any) -> Check:
@@ -184,20 +184,20 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
 
     # --- setup ------------------------------------------------------
     def do_init() -> tuple[bool, str, str]:
-        done = wsindex("init", f"tier1-{org}", cwd=home, env=env)
+        done = thulr("init", f"tier1-{org}", cwd=home, env=env)
         if done.returncode != 0:
             return False, "crash", done.stderr.strip()[:400]
-        exists = Path(env["WSINDEX_CONFIG"]).is_file()
+        exists = Path(env["THULR_CONFIG"]).is_file()
         return exists, "pass" if exists else "false", "config written" if exists else "no config"
 
     record("init", "writes a config it can read back", do_init)
 
     def do_add() -> tuple[bool, str, str]:
         for repo in spec["repos"]:
-            done = wsindex("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
+            done = thulr("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
             if done.returncode != 0:
                 return False, "crash", f"{repo['id']}: {done.stderr.strip()[:300]}"
-        shown = wsindex("status", cwd=home, env=env).stdout
+        shown = thulr("status", cwd=home, env=env).stdout
         missing = [r for r in repos if r not in shown]
         return (not missing), "pass" if not missing else "false", f"missing from status: {missing}"
 
@@ -205,7 +205,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
 
     # --- the corpus -------------------------------------------------
     def do_index() -> tuple[bool, str, str]:
-        done = wsindex("index", cwd=home, env=env)
+        done = thulr("index", cwd=home, env=env)
         if done.returncode != 0:
             return False, "crash", done.stderr.strip()[:400]
         run.facts["index_stdout"] = done.stdout
@@ -221,7 +221,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
         suffixes this harness believes are indexable. That list was the
         first version and it could not see the failure it was written
         for: `pow-auth` holds 381 Elixir files, no grammar covers them,
-        and a check whose denominator came from wsindex's own supported
+        and a check whose denominator came from thulr's own supported
         suffixes scored it 30 of 36 — 83%, a pass — while 401 files went
         unread. A measurement that inherits the tool's blind spot cannot
         see the tool go blind.
@@ -266,7 +266,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     # --- the answers ------------------------------------------------
     def answering(command: str, *args: str) -> Any:
         def go() -> tuple[bool, str, str]:
-            done = wsindex(command, *args, cwd=home, env=env)
+            done = thulr(command, *args, cwd=home, env=env)
             if done.returncode != 0:
                 return False, "crash", done.stderr.strip()[:400]
             seen, bad = check_citations(done.stdout, root, repos)
@@ -303,7 +303,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
         """Flip the one setting this pair of checks is about."""
         import tomli_w
 
-        path = Path(env["WSINDEX_CONFIG"])
+        path = Path(env["THULR_CONFIG"])
         data = tomllib.loads(path.read_text())
         data.setdefault("store", {})["hybrid"] = on
         path.write_text(tomli_w.dumps(data))
@@ -322,7 +322,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
         stopped carrying numbers, and an unfalsifiable check is not one.
         """
         set_hybrid(False)
-        done = wsindex("search", "database cleaner", "-k", "10", cwd=home, env=env)
+        done = thulr("search", "database cleaner", "-k", "10", cwd=home, env=env)
         set_hybrid(True)
         if done.returncode != 0:
             return False, "crash", done.stderr.strip()[:300]
@@ -354,7 +354,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
         """Whatever the column carries, every row must carry the same
         kind of thing. A list that mixes a similarity and a word is
         worse than either."""
-        done = wsindex("search", "database cleaner", "-k", "10", cwd=home, env=env)
+        done = thulr("search", "database cleaner", "-k", "10", cwd=home, env=env)
         if done.returncode != 0:
             return False, "crash", done.stderr.strip()[:300]
         rows = [
@@ -371,11 +371,11 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
 
     # --- the index survives being maintained ------------------------
     def do_compact() -> tuple[bool, str, str]:
-        before = wsindex("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
-        done = wsindex("compact", cwd=home, env=env)
+        before = thulr("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
+        done = thulr("compact", cwd=home, env=env)
         if done.returncode != 0:
             return False, "crash", done.stderr.strip()[:400]
-        after = wsindex("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
+        after = thulr("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
         same = before.strip() == after.strip()
         return (
             same,
@@ -388,11 +388,11 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     def do_reindex() -> tuple[bool, str, str]:
         """An unchanged workspace must cost nothing and change nothing —
         the claim the README makes about incremental indexing."""
-        before = wsindex("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
-        done, seconds = timed(lambda: wsindex("index", cwd=home, env=env))
+        before = thulr("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
+        done, seconds = timed(lambda: thulr("index", cwd=home, env=env))
         if done.returncode != 0:
             return False, "crash", done.stderr.strip()[:400]
-        after = wsindex("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
+        after = thulr("search", "database cleaner", "-k", "5", cwd=home, env=env).stdout
         same = before.strip() == after.strip()
         run.facts["reindex_seconds"] = seconds
         return (
@@ -420,8 +420,8 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
         """
         asked = ["database cleaner", "how does the connection get closed", "strategy"]
         for question in asked:
-            first = wsindex("search", question, "-k", "10", cwd=home, env=env).stdout
-            again = wsindex("search", question, "-k", "10", cwd=home, env=env).stdout
+            first = thulr("search", question, "-k", "10", cwd=home, env=env).stdout
+            again = thulr("search", question, "-k", "10", cwd=home, env=env).stdout
             if first != again:
                 where = next(
                     (
@@ -483,7 +483,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
     lines = [
         "# Tier 1 — does every command run, and is what it says true?",
         "",
-        f"_{time.strftime('%Y-%m-%d %H:%M')}, wsindex `{sha}`, "
+        f"_{time.strftime('%Y-%m-%d %H:%M')}, thulr `{sha}`, "
         f"{len(runs)} workspace(s), {len(every)} checks, {seconds:.0f}s._",
         "",
         "## Conditions",

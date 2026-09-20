@@ -15,12 +15,12 @@ from typing import Any
 import pytest
 from mcp.server.fastmcp import FastMCP
 
-from wsindex.config import Config, Provider, Repository
-from wsindex.embed import FakeEmbedder
-from wsindex.links import LinkStore
-from wsindex.mcp_server import build
-from wsindex.pipeline import Pipeline
-from wsindex.store import LanceDBStore
+from thulr.config import Config, Provider, Repository
+from thulr.embed import FakeEmbedder
+from thulr.links import LinkStore
+from thulr.mcp_server import build
+from thulr.pipeline import Pipeline
+from thulr.store import LanceDBStore
 
 PY_TEXT = "def greet(name):\n    return f'hello {name}'\n"
 CONFIG_TEXT = "port = 8080\n"
@@ -44,15 +44,15 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     Config.reset()
     config = Config.default("agents", provider=Provider.FAKE)
     config.add_repo(Repository(id="repo1", path=str(repo)))
-    config.save(tmp_path / "wsindex.toml")
+    config.save(tmp_path / "thulr.toml")
     Config.reset()
-    Config(tmp_path / "wsindex.toml")
+    Config(tmp_path / "thulr.toml")
     return tmp_path
 
 
 @pytest.fixture
 def server(workspace: Path) -> FastMCP:
-    # Built the way `wsindex.cli._build_pipeline` builds it: state and
+    # Built the way `thulr.cli._build_pipeline` builds it: state and
     # links both live in `index_dir`, and the tools read them from there.
     index_dir = Config().index_dir
     store = LanceDBStore(uri=str(index_dir), embedder=FakeEmbedder())

@@ -18,7 +18,7 @@ Two workers, the same questions, the same stopping rule:
   match — `WINDOW` lines either side, which is what `rg -C` shows and
   what a person actually reads. Its *best* shot, not its worst: charging
   it for whole files is charging it for a tool nobody uses.
-- **wsindex** runs one search and reads the chunks it ranked, in order —
+- **thulr** runs one search and reads the chunks it ranked, in order —
   the real line range of each, taken off disk, not the one-line snippet
   the terminal printed. Charging it for the preview was the first
   version of this file and it flattered the result by two orders of
@@ -42,8 +42,8 @@ Usage:
     uv run python scripts/tier3.py --full
 
 Environment:
-    WSINDEX_RELEVANCE_DIR   corpus cache, shared with the other harnesses
-    WSINDEX_RG              ripgrep, when it is not on PATH
+    THULR_RELEVANCE_DIR   corpus cache, shared with the other harnesses
+    THULR_RG              ripgrep, when it is not on PATH
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ import relevance as R  # noqa: E402  - the corpus, the control and the term rule
 CORPUS = HERE / "acceptance_corpus"
 CACHE = R.CACHE
 PROTOCOLS = HERE.parent / "docs" / "protocols"
-BINARY = Path(sys.executable).parent / "wsindex"
+BINARY = Path(sys.executable).parent / "thulr"
 
 BUDGET = 120_000
 """Tokens a worker may read before it has failed.
@@ -77,11 +77,11 @@ interesting number is what was spent to succeed, and a cap that bites
 often would quietly turn a cost measurement into a recall one."""
 
 DEPTH = 150
-"""How many ranked hits the wsindex worker may walk.
+"""How many ranked hits the thulr worker may walk.
 
 Deep enough that `BUDGET` is what stops it, which is the only way the
 two workers are under the same rule. At twenty — the first version —
-wsindex stopped at 8 621 tokens while grep was still going at 118 310,
+thulr stopped at 8 621 tokens while grep was still going at 118 310,
 and the found-rates that produced said more about the two cut-offs than
 about either tool. A chunk is around 800 tokens, so a hundred and fifty
 of them is the budget."""
@@ -92,7 +92,7 @@ WINDOW = 20
 `rg -C 20` is a generous reading of what somebody does with a hit, and
 generous is the point: a control given its worst tool is not a control.
 The first version of this charged it for whole files and reported
-wsindex cheaper on 44 of 44 — true of that comparison and of no other."""
+thulr cheaper on 44 of 44 — true of that comparison and of no other."""
 
 TERMS = 4
 """How many of the query's words the grep worker will try. It tries them
@@ -142,7 +142,7 @@ class Run:
     notes: dict[str, Any] = field(default_factory=dict)
 
 
-def wsindex(*args: str, cwd: Path, env: dict[str, str]) -> str:
+def thulr(*args: str, cwd: Path, env: dict[str, str]) -> str:
     done = subprocess.run(
         [str(BINARY), *args],
         cwd=cwd,
@@ -210,7 +210,7 @@ def chunk_tokens(root: Path, where: str, span: str) -> int:
     return tokens("\n".join(lines[max(0, start - 1) : end])) or 1
 
 
-def wsindex_worker(
+def thulr_worker(
     question: str, answers: set[str], home: Path, env: dict[str, str], root: Path
 ) -> Attempt:
     """One search, then its chunks in rank order.
@@ -219,7 +219,7 @@ def wsindex_worker(
     range is what this hands over instead of a path — and that difference
     is the whole hypothesis under test.
     """
-    out = wsindex("search", question, "-k", str(DEPTH), cwd=home, env=env)
+    out = thulr("search", question, "-k", str(DEPTH), cwd=home, env=env)
     spent = 0
     opened = 0
     for line in out.splitlines():
@@ -252,7 +252,7 @@ def indexed_paths(home: Path) -> set[str]:
     """
     import lancedb
 
-    table = lancedb.connect(str(home / ".wsindex")).open_table("data")
+    table = lancedb.connect(str(home / ".thulr")).open_table("data")
     rows = table.search().select(["repo", "path"]).limit(table.count_rows()).to_arrow()
     return {
         f"{repo}/{path}"
@@ -267,12 +267,12 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     home = CACHE / ".tier3" / org
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True, exist_ok=True)
-    env = {"WSINDEX_CONFIG": str(home / "wsindex.toml")}
-    wsindex("init", f"tier3-{org}", cwd=home, env=env)
+    env = {"THULR_CONFIG": str(home / "thulr.toml")}
+    thulr("init", f"tier3-{org}", cwd=home, env=env)
     for repo in spec["repos"]:
-        wsindex("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
+        thulr("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
     print(f"  indexing {org}", flush=True)
-    wsindex("index", cwd=home, env=env)
+    thulr("index", cwd=home, env=env)
     run = Run(org=org)
 
     harvested = json.loads((CORPUS / "harvested" / f"{org}.json").read_text(encoding="utf-8"))[
@@ -287,7 +287,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
             Task(
                 question=question,
                 answers=tuple(sorted(answers)),
-                ours=wsindex_worker(question, answers, home, env, root),
+                ours=thulr_worker(question, answers, home, env, root),
                 theirs=grep_worker(question, answers, root),
                 reachable=bool(answers & indexed),
             )
@@ -304,7 +304,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
     lines = [
         "# Tier 3 — does it save anybody anything?",
         "",
-        f"_{time.strftime('%Y-%m-%d %H:%M')}, wsindex `{sha}`, "
+        f"_{time.strftime('%Y-%m-%d %H:%M')}, thulr `{sha}`, "
         f"{len(runs)} workspace(s), {len(every)} tasks, {seconds:.0f}s._",
         "",
         "## Conditions",
@@ -312,7 +312,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
         "- Tasks: the harvested questions — a closed issue's title, and the",
         "  files the pull request that closed it changed.",
         "- Workers: a fixed reading policy, not a language model. `grep`",
-        "  reads whole files in the order `rg -l` names them; `wsindex`",
+        "  reads whole files in the order `rg -l` names them; `thulr`",
         "  reads ranked chunks. Both stop when an answer file is in front",
         "  of them.",
         f"- Budget: {BUDGET} tokens, counted as characters over four, the",
@@ -320,7 +320,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
         "",
         "## The gate, declared before the run",
         "",
-        "On the tasks both workers finish, wsindex puts fewer tokens in",
+        "On the tasks both workers finish, thulr puts fewer tokens in",
         "front of the reader, and finishes at least as many tasks overall.",
         "",
         "## Results",
@@ -349,10 +349,10 @@ def protocol(runs: list[Run], seconds: float) -> str:
             "",
             "| Worker | Median tokens | Mean | Worst |",
             "| --- | ---: | ---: | ---: |",
-            f"| wsindex | {ours[middle]} | {sum(ours) // len(ours)} | {ours[-1]} |",
+            f"| thulr | {ours[middle]} | {sum(ours) // len(ours)} | {ours[-1]} |",
             f"| grep | {theirs[middle]} | {sum(theirs) // len(theirs)} | {theirs[-1]} |",
             "",
-            f"wsindex was cheaper on **{cheaper} of {len(both)}**.",
+            f"thulr was cheaper on **{cheaper} of {len(both)}**.",
         ]
     lines += [
         "",
@@ -373,7 +373,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
 
 def main() -> int:
     if R.RG is None:
-        print("no ripgrep: set WSINDEX_RG. Tier 3 has no control without it.", file=sys.stderr)
+        print("no ripgrep: set THULR_RG. Tier 3 has no control without it.", file=sys.stderr)
         return 2
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     corpus = json.loads((CORPUS / "corpus.json").read_text(encoding="utf-8"))

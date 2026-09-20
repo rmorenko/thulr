@@ -27,7 +27,7 @@ Three scenarios, in the order the plan named them:
     unit test: `WORKERS` simultaneous `POST /index` must produce exactly
     one run and `WORKERS - 1` refusals.
 
-The server is a real `wsindex serve` subprocess with a real config, a
+The server is a real `thulr serve` subprocess with a real config, a
 real token and its access log on — that last one deliberately, because
 it is what shipping does, and a benchmark that quietly turns off the
 product's defaults measures something nobody runs.
@@ -38,8 +38,8 @@ Usage:
     uv run poe load -- --json out.json
 
 Environment:
-    WSINDEX_BENCH_DIR  corpus clone cache, shared with `bench.py`
-    WSINDEX_LOAD_FAST  set to "1" for the fake embedder — for checking
+    THULR_BENCH_DIR  corpus clone cache, shared with `bench.py`
+    THULR_LOAD_FAST  set to "1" for the fake embedder — for checking
                        the harness itself, never for a real verdict.
 """
 
@@ -385,7 +385,7 @@ SCENARIOS: dict[str, Callable[[Server, int], Result]] = {
 
 # --- the server under test -------------------------------------------------
 
-TOKEN_ENV = "WSINDEX_LOAD_TOKEN"
+TOKEN_ENV = "THULR_LOAD_TOKEN"
 """Names the variable holding the token. The config names the variable;
 the variable holds the secret. Never the other way round, and this file
 is not an exception to that because a benchmark's config is still a
@@ -393,7 +393,7 @@ config somebody may copy."""
 
 
 class Server:
-    """A real `wsindex serve`, on a real workspace, for the length of a run."""
+    """A real `thulr serve`, on a real workspace, for the length of a run."""
 
     def __init__(self, base: str, token: str, index_dir: Path, log: Path, corpus: Path) -> None:
         self.base = base
@@ -463,27 +463,27 @@ def serving(corpus: Path, port: int, *, rerank: bool = False) -> Iterator[Server
             the product's default and the SLO was written for it.
     """
     token = "load-" + os.urandom(8).hex()
-    with tempfile.TemporaryDirectory(prefix="wsindex-load-") as home:
+    with tempfile.TemporaryDirectory(prefix="thulr-load-") as home:
         root = Path(home)
         config = write_config(root, corpus, rerank=rerank)
         log = root / "server.log"
         environ = {
             **os.environ,
-            "WSINDEX_CONFIG": str(config),
+            "THULR_CONFIG": str(config),
             TOKEN_ENV: token,
         }
         with log.open("wb") as sink:
             # The console script beside this interpreter, not `-m
-            # wsindex`: the package has no `__main__`, and the whole
+            # thulr`: the package has no `__main__`, and the whole
             # point is to drive the command a person would type.
-            command = [str(Path(sys.executable).parent / "wsindex")]
+            command = [str(Path(sys.executable).parent / "thulr")]
             process = subprocess.Popen(
                 [*command, "serve", "--host", "127.0.0.1", "--port", str(port)],
                 stdout=sink,
                 stderr=subprocess.STDOUT,
                 env=environ,
             )
-            server = Server(f"http://127.0.0.1:{port}", token, root / ".wsindex", log, corpus)
+            server = Server(f"http://127.0.0.1:{port}", token, root / ".thulr", log, corpus)
             try:
                 await_healthy(server.base, process, log)
                 yield server
@@ -500,10 +500,10 @@ def serving(corpus: Path, port: int, *, rerank: bool = False) -> Iterator[Server
 
 def write_config(root: Path, corpus: Path, *, rerank: bool = False) -> Path:
     """A workspace config pointing at the corpus, with a token and no ticker."""
-    from wsindex.config import Config, Provider, Repository
+    from thulr.config import Config, Provider, Repository
 
     Config.reset()
-    fast = os.environ.get("WSINDEX_LOAD_FAST") == "1"
+    fast = os.environ.get("THULR_LOAD_FAST") == "1"
     config = Config.default("load", provider=Provider.FAKE if fast else None)
     config.add_repo(Repository(id="corpus", path=str(corpus)))
     if rerank:
@@ -516,7 +516,7 @@ def write_config(root: Path, corpus: Path, *, rerank: bool = False) -> Path:
     # scenario and the "idle" number would be a different measurement
     # every run. Contention is a scenario here, not a background hum.
     config._data["server"] = {"token_env": TOKEN_ENV}
-    path = root / "wsindex.toml"
+    path = root / "thulr.toml"
     config.save(path)
     Config.reset()
     return path
@@ -625,7 +625,7 @@ def searches_counted(server: Server) -> float | None:
             sample.value
             for family in text_string_to_metric_families(server.metrics())
             for sample in family.samples
-            if sample.name == "wsindex_http_request_seconds_count"
+            if sample.name == "thulr_http_request_seconds_count"
             and sample.labels.get("route") == "/search"
         )
     except Exception:  # pragma: no cover - depends on the dev install
@@ -662,7 +662,7 @@ def cross_check(before: float | None, after: float | None, results: list[Result]
 def render(env: dict[str, str], results: list[Result], verdicts: list[Judgement], note: str) -> str:
     """The report, in the shape the plan's journal wants."""
     lines = [
-        "# wsindex load",
+        "# thulr load",
         "",
         " · ".join(f"{key} `{value}`" for key, value in env.items()),
         "",
@@ -749,7 +749,7 @@ def main() -> int:
         # `environment()` reads `bench.py`'s flag for this, and this file
         # has its own. Left alone, the report labels a fake-embedder run
         # `real`, which is worse than no label.
-        "embedder": "fake" if os.environ.get("WSINDEX_LOAD_FAST") == "1" else "real",
+        "embedder": "fake" if os.environ.get("THULR_LOAD_FAST") == "1" else "real",
         # In the header, not a footnote: two runs of this harness measure
         # different products, and a table that does not say which is a
         # table somebody will compare against the wrong one.

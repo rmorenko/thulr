@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config
-from wsindex.ingest.link_extract import links_for
-from wsindex.links import LinkKind
-from wsindex.model import Chunk, Kind
+from thulr.config import Config
+from thulr.ingest.link_extract import links_for
+from thulr.links import LinkKind
+from thulr.model import Chunk, Kind
 
 JIRA = "https://jira.example.invalid/browse/PROJ-{key}"
 ISSUE = "https://github.com/org/repo/issues/{key}"
@@ -155,7 +155,7 @@ def test_references_default_to_empty() -> None:
 def test_references_round_trip_through_the_file(tmp_path: Path) -> None:
     config = Config.default("demo")
     config._data["references"] = {"PROJ-": JIRA}
-    path = config.save(tmp_path / "wsindex.toml")
+    path = config.save(tmp_path / "thulr.toml")
 
     Config.reset()
     assert Config(path).references == {"PROJ-": JIRA}
@@ -168,7 +168,7 @@ def test_a_config_without_the_section_still_loads(tmp_path: Path) -> None:
 
     data = Config.default("demo").to_dict()
     del data["references"]
-    path = tmp_path / "wsindex.toml"
+    path = tmp_path / "thulr.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     Config.reset()
     assert Config(path).references == {}

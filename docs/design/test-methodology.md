@@ -59,8 +59,8 @@ number attached.
 
 **The corpus is pinned and shared.** Seven workspaces, 33 repositories,
 each at a recorded sha (`scripts/acceptance_corpus/corpus.json`).
-Materialised into `$WSINDEX_RELEVANCE_DIR`, default
-`~/.cache/wsindex-relevance`. A floating clone rots ground truth
+Materialised into `$THULR_RELEVANCE_DIR`, default
+`~/.cache/thulr-relevance`. A floating clone rots ground truth
 silently, which is why nothing here clones a branch.
 
 **Every run states its configuration.** Which model, which provider,
@@ -120,7 +120,7 @@ number without a denominator is not reported.
 
 **Tier 3** — a real issue, its real fix. An agent is given the issue
 title and the repository at the commit before the fix, with and without
-wsindex, and graded on whether it names the files the real pull request
+thulr, and graded on whether it names the files the real pull request
 changed and on what it spent getting there.
 
 ## What is measured
@@ -172,7 +172,7 @@ machine.
 **Paired, always.** Every comparison puts the same question to two
 tools or two configurations, so the test is McNemar's on the discordant
 pairs, not two proportions compared by eye. `55 against 60` is not a
-result; `27 only wsindex, 32 only ripgrep, p = 0.60` is.
+result; `27 only thulr, 32 only ripgrep, p = 0.60` is.
 
 **Reachability is counted apart from ranking.** A question whose answer
 lives in a file the indexer never read is a coverage failure wearing a
@@ -257,7 +257,7 @@ the control returned was in the truth by construction and it could not
 be wrong. Two published verdicts rested on that before anybody swept.
 
 The same shape appeared in tier 1: the coverage check counted files
-against a list of suffixes wsindex claims to support, so a language it
+against a list of suffixes thulr claims to support, so a language it
 does not support was invisible to the check written to catch exactly
 that. A measurement that inherits the tool's blind spot cannot see the
 tool go blind, and both of these are that.

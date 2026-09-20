@@ -19,12 +19,12 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.config import Config, Repository
-from wsindex.embed import FakeEmbedder
-from wsindex.links import Link, LinkKind, LinkStore
-from wsindex.model import Chunk, Kind
-from wsindex.pipeline import Pipeline
-from wsindex.store import LanceDBStore
+from thulr.config import Config, Repository
+from thulr.embed import FakeEmbedder
+from thulr.links import Link, LinkKind, LinkStore
+from thulr.model import Chunk, Kind
+from thulr.pipeline import Pipeline
+from thulr.store import LanceDBStore
 
 Committer = Callable[[Path], None]
 
@@ -208,14 +208,14 @@ def test_a_run_says_so_when_a_prune_turns_out_to_have_cost_something(
 
     (repo / "server.py").write_text("def handle_request():\n    return 1\n")
     commit(repo)
-    with caplog.at_level("WARNING", logger="wsindex.pipeline"):
+    with caplog.at_level("WARNING", logger="thulr.pipeline"):
         pipeline.index()
 
     assert "run a full re-index" in caplog.text
     # And the debt clears, or the warning outlives the loss and becomes
     # something people learn to scroll past.
     caplog.clear()
-    with caplog.at_level("WARNING", logger="wsindex.pipeline"):
+    with caplog.at_level("WARNING", logger="thulr.pipeline"):
         pipeline.index()
     assert "run a full re-index" not in caplog.text
 
@@ -291,8 +291,8 @@ def test_a_port_in_prose_is_neither_side_of_the_drift_rule() -> None:
     # external references arrived,
     # it does contribute a REFERENCES link for the url itself, which is a
     # different assertion entirely.
-    from wsindex.ingest.link_extract import links_for
-    from wsindex.model import Chunk, Kind
+    from thulr.ingest.link_extract import links_for
+    from thulr.model import Chunk, Kind
 
     doc = Chunk(
         repo="r",
@@ -313,8 +313,8 @@ def test_a_port_in_prose_is_neither_side_of_the_drift_rule() -> None:
 def test_link_lines_are_file_lines_not_chunk_lines() -> None:
     # A link points a person at a file; a chunk offset would send them to
     # the wrong place in every chunk but the first.
-    from wsindex.ingest.link_extract import links_for
-    from wsindex.model import Chunk, Kind
+    from thulr.ingest.link_extract import links_for
+    from thulr.model import Chunk, Kind
 
     chunk = Chunk(
         repo="r",
@@ -333,8 +333,8 @@ def test_link_lines_are_file_lines_not_chunk_lines() -> None:
 def test_a_port_key_in_a_config_is_a_declaration() -> None:
     # Not every config publishes ports the compose way. `port: 8000` in
     # a yaml or `port = 8000` in a toml declares one just as much.
-    from wsindex.ingest.link_extract import links_for
-    from wsindex.model import Chunk, Kind
+    from thulr.ingest.link_extract import links_for
+    from thulr.model import Chunk, Kind
 
     cfg = Chunk(
         repo="r",
@@ -487,7 +487,7 @@ def test_a_config_declares_its_keys_and_not_only_its_ports() -> None:
     # config keys were known to the store — 10 of 120 sampled on
     # caddyserver. Ports were never the interesting half, only the half
     # a regular expression could reach.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     found = links_for([config("server:\n  max_retries: 3\n  port: 8000\n")])
 
@@ -503,7 +503,7 @@ def test_a_short_key_is_a_setting_even_though_a_short_symbol_is_not() -> None:
     # Code needs a length guard because `get` and `run` are not names
     # worth an edge. A config key is a name by grammar, and `ssl`, `env`
     # and `dsn` are settings people ask about.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     assert {link.name for link in links_for([config("ssl: true\nenv: prod\n")])} == {"ssl", "env"}
 
@@ -513,7 +513,7 @@ def test_a_setting_is_found_under_the_other_half_s_spelling(links: LinkStore) ->
     # misses `MaxRetries`, and `rg -i` misses it too, because they differ
     # by more than case. Asking someone to guess which half of their own
     # system spells it which way is asking them to know the answer first.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     links.add_links(links_for([config("max_retries: 3")]), repo="r", path="app.yaml")
     links.add_links(links_for([code("if attempt < cfg.MaxRetries {")]), repo="r", path="retry.go")
@@ -525,7 +525,7 @@ def test_a_setting_is_found_under_the_other_half_s_spelling(links: LinkStore) ->
 def test_the_spelling_that_was_asked_for_comes_first(links: LinkStore) -> None:
     # A variant arriving above an exact hit reads as the exact answer,
     # and the reader has no way to tell without checking the file.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     links.add_links(links_for([code("x := MaxRetries")]), repo="r", path="a.go")
     links.add_links(links_for([code("y := max_retries")]), repo="r", path="b.go")
@@ -534,7 +534,7 @@ def test_the_spelling_that_was_asked_for_comes_first(links: LinkStore) -> None:
 
 
 def test_a_database_from_before_normalisation_is_still_searchable(tmp_path: Path) -> None:
-    # `norm` is NULL in rows written by an older wsindex, and a query
+    # `norm` is NULL in rows written by an older thulr, and a query
     # that only asked `norm = ?` would answer "no links named that" for
     # an index full of them. Silence is the worst failure here: it reads
     # as a fact about the code.
@@ -570,7 +570,7 @@ def test_a_definition_and_a_use_of_the_same_name_meet(links: LinkStore) -> None:
     # 6 896 had both a READS_KEY and a DECLARES. Both sides are stored
     # unresolved, because the extractor sees one file and the definition
     # is usually in another repository entirely.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     definition = links_for([code("func ServeHTTP() {}", symbol="ServeHTTP")])
     use = links_for([code("h.ServeHTTP(w, r)", path="b.go")])
@@ -584,7 +584,7 @@ def test_a_definition_and_a_use_of_the_same_name_meet(links: LinkStore) -> None:
 def test_a_chunk_does_not_mention_the_name_it_defines() -> None:
     # Otherwise every definition answers its own query and `refs` reports
     # the definition twice, once under each label.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     found = links_for([code("func ServeHTTP() {\n  return ServeHTTP\n}", symbol="ServeHTTP")])
 
@@ -600,7 +600,7 @@ def test_a_keyword_is_not_a_name_worth_an_edge() -> None:
     # 31 839 edges, and it needs no per-language stop-list precisely
     # because keywords are single lowercase words in all sixteen
     # grammars.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     found = links_for([code("return errors.New(string(value))\nreadConfig()\n")])
 
@@ -611,7 +611,7 @@ def test_a_name_is_recorded_once_at_its_first_line() -> None:
     # A variable used nine times inside its own function is one fact, not
     # nine, and the nine tell a reader nothing they cannot see once the
     # file is open.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     found = links_for([code("x := maxRetries\ny := maxRetries\n", line=40)])
 
@@ -624,8 +624,8 @@ def test_each_sort_of_occurrence_is_told_apart() -> None:
     # — receivers, struct literals, field accesses. A call graph would
     # throw that 42% away to remove the 6% that is comment, import and
     # string. Labelling keeps both readers.
-    from wsindex.ingest.link_extract import links_for
-    from wsindex.links import Occurrence
+    from thulr.ingest.link_extract import links_for
+    from thulr.links import Occurrence
 
     found = links_for(
         [
@@ -654,8 +654,8 @@ def test_the_best_occurrence_wins_not_the_first() -> None:
     # first would send a reader to the comment and label the edge
     # `comment`, which is the least useful answer to "where is this
     # used".
-    from wsindex.ingest.link_extract import links_for
-    from wsindex.links import Occurrence
+    from thulr.ingest.link_extract import links_for
+    from thulr.links import Occurrence
 
     found = links_for([code("# wraps parseHeader\nx = 1\nparseHeader(x)\n", line=10)])
 
@@ -665,8 +665,8 @@ def test_the_best_occurrence_wins_not_the_first() -> None:
 def test_the_occurrence_survives_a_round_trip(links: LinkStore) -> None:
     # It is a column, and a column that is written and not read is the
     # ordinary way a field like this quietly becomes decorative.
-    from wsindex.ingest.link_extract import links_for
-    from wsindex.links import Occurrence
+    from thulr.ingest.link_extract import links_for
+    from thulr.links import Occurrence
 
     links.add_links(links_for([code("computeSum(total)")]), repo="r", path="a.go")
 
@@ -677,7 +677,7 @@ def test_a_kind_with_nothing_to_say_about_placement_says_nothing(links: LinkStor
     # `via` is an attribute of MENTIONS. A DEFINES edge is the definition
     # wherever it sits, and a default of `code` would read as a measured
     # claim rather than as an absence.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     links.add_links(links_for([code("func doThing() {}", symbol="doThing")]), repo="r", path="a.go")
 
@@ -688,7 +688,7 @@ def test_a_method_is_stored_under_its_bare_name() -> None:
     # The store holds `Cls.method` for `search --symbol`, but a call site
     # spells it `method`, and a qualified name here would join with
     # nothing.
-    from wsindex.ingest.link_extract import links_for
+    from thulr.ingest.link_extract import links_for
 
     found = links_for([code("def run_once(self): pass", symbol="Scheduler.run_once")])
 

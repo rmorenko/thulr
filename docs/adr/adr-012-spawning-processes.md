@@ -75,20 +75,20 @@ working thread stays at 2.6x rather than 34.7x. Measured in a container.
 - **`nice` on the subprocesses.** Does nothing at all: 2079 ms → 2143 ms.
   The scheduler is not what is being contended for.
 - **Fewer blame workers.** Works — two workers bring p95 to 284 ms — and
-  costs 48% of indexing throughput, penalising `wsindex index` for
+  costs 48% of indexing throughput, penalising `thulr index` for
   everybody to protect a case that only a server meets.
 
 ## Decision
 
 1. **A batch of external processes is started from a small child, not
-   from the process that holds the model.** `wsindex.ingest.blame` is
+   from the process that holds the model.** `thulr.ingest.blame` is
    that child for the blame pass: it runs the same eight-way pool, and
    the engine starts one process instead of one per file.
 
 1. **The child imports nothing from this package**, and a test asserts
-   it. `import wsindex.ingest` costs 30 ms of unrelated imports against a
+   it. `import thulr.ingest` costs 30 ms of unrelated imports against a
    21 ms bare interpreter — enough to move the break-even from four files
-   to nearer ten. A stray `from wsindex...` would fail no other test; it
+   to nearer ten. A stray `from thulr...` would fail no other test; it
    would quietly make the threshold wrong.
 
 1. **One implementation, two callers.** How to invoke git arrives as an

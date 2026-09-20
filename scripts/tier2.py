@@ -26,8 +26,8 @@ Usage:
     uv run python scripts/tier2.py --all
 
 Environment:
-    WSINDEX_RELEVANCE_DIR   corpus cache, shared with the other harnesses
-    WSINDEX_RG              ripgrep, when it is not on PATH
+    THULR_RELEVANCE_DIR   corpus cache, shared with the other harnesses
+    THULR_RG              ripgrep, when it is not on PATH
 """
 
 from __future__ import annotations
@@ -48,10 +48,10 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 CORPUS = HERE / "acceptance_corpus"
-CACHE = Path(os.environ.get("WSINDEX_RELEVANCE_DIR", Path.home() / ".cache" / "wsindex-relevance"))
+CACHE = Path(os.environ.get("THULR_RELEVANCE_DIR", Path.home() / ".cache" / "thulr-relevance"))
 PROTOCOLS = HERE.parent / "docs" / "protocols"
-BINARY = Path(sys.executable).parent / "wsindex"
-RG = os.environ.get("WSINDEX_RG") or shutil.which("rg")
+BINARY = Path(sys.executable).parent / "thulr"
+RG = os.environ.get("THULR_RG") or shutil.which("rg")
 
 SAMPLE = 40
 """How many of each kind to ask about. Stated rather than chosen per
@@ -101,7 +101,7 @@ class Run:
     notes: dict[str, Any] = field(default_factory=dict)
 
 
-def wsindex(*args: str, cwd: Path, env: dict[str, str]) -> str:
+def thulr(*args: str, cwd: Path, env: dict[str, str]) -> str:
     done = subprocess.run(
         [str(BINARY), *args],
         cwd=cwd,
@@ -298,7 +298,7 @@ def grade_why(
     """
     found: list[Graded] = []
     for symbol in subjects:
-        answer = wsindex("why", symbol, cwd=home, env=env)
+        answer = thulr("why", symbol, cwd=home, env=env)
         head = DEFINITION.match(answer.strip().splitlines()[0]) if answer.strip() else None
         if head is None:
             # Not a `why` failure: nothing was found to ask about, which
@@ -421,7 +421,7 @@ def grade_refs(
         truth = defining_files(subject, root, repos)
         if not truth:
             continue
-        answer = wsindex("refs", subject, cwd=home, env=env)
+        answer = thulr("refs", subject, cwd=home, env=env)
         cited = [m.group(1) for m in (CITED.match(line) for line in answer.splitlines()) if m]
         cited = [c for c in cited if c and not c.startswith("commits/")]
         control = rg("-l", "-F", "-w", subject, cwd=root)
@@ -468,7 +468,7 @@ def grade_spelling(
             # Nothing spells it differently, so there is no bridge to
             # cross and the question is vacuous rather than failed.
             continue
-        answer = wsindex("refs", subject, cwd=home, env=env)
+        answer = thulr("refs", subject, cwd=home, env=env)
         cited = {m.group(1) for m in (CITED.match(line) for line in answer.splitlines()) if m}
         reached = set(rg("-l", "-F", "-w", subject, cwd=root)) | set(
             rg("-l", "-F", "-iw", subject, cwd=root)
@@ -516,7 +516,7 @@ def chunk_text(home: Path, where: str, line: int) -> str:
     import lancedb
 
     repo, _, path = where.partition("/")
-    table = lancedb.connect(str(home / ".wsindex")).open_table("data")
+    table = lancedb.connect(str(home / ".thulr")).open_table("data")
     rows = (
         table.search()
         .where(
@@ -545,7 +545,7 @@ def grade_dupes(home: Path, env: dict[str, str]) -> tuple[list[Graded], dict[str
     """
     from difflib import SequenceMatcher
 
-    out = wsindex("dupes", "--limit", "200", cwd=home, env=env)
+    out = thulr("dupes", "--limit", "200", cwd=home, env=env)
     pairs = [DUPE_PAIR.match(line) for line in out.splitlines()]
     found: list[Graded] = []
     boilerplate = 0
@@ -588,7 +588,7 @@ def indexed_paths(home: Path) -> set[str]:
     """
     import lancedb
 
-    table = lancedb.connect(str(home / ".wsindex")).open_table("data")
+    table = lancedb.connect(str(home / ".thulr")).open_table("data")
     # Two columns, not the vectors: this table is hundreds of megabytes
     # on a large workspace and the question is only which files exist.
     rows = table.search().select(["repo", "path"]).limit(table.count_rows()).to_arrow()
@@ -609,12 +609,12 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     home = CACHE / ".tier2" / org
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True, exist_ok=True)
-    env = {"WSINDEX_CONFIG": str(home / "wsindex.toml")}
-    wsindex("init", f"tier2-{org}", cwd=home, env=env)
+    env = {"THULR_CONFIG": str(home / "thulr.toml")}
+    thulr("init", f"tier2-{org}", cwd=home, env=env)
     for repo in spec["repos"]:
-        wsindex("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
+        thulr("add-repo", repo["id"], str(root / repo["id"]), cwd=home, env=env)
     print(f"  indexing {org}", flush=True)
-    wsindex("index", cwd=home, env=env)
+    thulr("index", cwd=home, env=env)
 
     indexed = indexed_paths(home)
     run = Run(org=org)
@@ -639,7 +639,7 @@ def run_workspace(org: str, spec: dict[str, Any]) -> Run:
     # real build problem or a fork sharing a vocabulary is a judgement,
     # and the methodology says to sample and say so rather than invent a
     # rule. The output goes into the protocol for a person to read.
-    run.notes["deps"] = wsindex("deps", "--limit", "8", cwd=home, env=env)
+    run.notes["deps"] = thulr("deps", "--limit", "8", cwd=home, env=env)
     return run
 
 
@@ -736,7 +736,7 @@ def protocol(runs: list[Run], seconds: float) -> str:
     lines = [
         "# Tier 2 — is the answer right, and does it beat what a person would type?",
         "",
-        f"_{time.strftime('%Y-%m-%d %H:%M')}, wsindex `{sha}`, "
+        f"_{time.strftime('%Y-%m-%d %H:%M')}, thulr `{sha}`, "
         f"{len(runs)} workspace(s), {len(every)} questions, {seconds:.0f}s._",
         "",
         "## Conditions",
@@ -831,7 +831,7 @@ def main() -> int:
         # itself, which the methodology forbids in as many words. Better
         # to refuse than to write a protocol that looks like evidence.
         print(
-            "no ripgrep: set WSINDEX_RG to its path. A tier-2 run without a "
+            "no ripgrep: set THULR_RG to its path. A tier-2 run without a "
             "control measures nothing.",
             file=sys.stderr,
         )

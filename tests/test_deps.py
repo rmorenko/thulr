@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from wsindex.deps import analyse
-from wsindex.links import Link, LinkKind, LinkStore
+from thulr.deps import analyse
+from thulr.links import Link, LinkKind, LinkStore
 
 
 @pytest.fixture

@@ -23,9 +23,9 @@ from typing import Any
 
 import pytest
 
-from wsindex.ingest import blame as blaming
-from wsindex.ingest import commits as commits_module
-from wsindex.ingest.commits import BLAME_WORKERS, HELPER_FROM, _blame, blame_map
+from thulr.ingest import blame as blaming
+from thulr.ingest import commits as commits_module
+from thulr.ingest.commits import BLAME_WORKERS, HELPER_FROM, _blame, blame_map
 
 REAL_RUN = subprocess.run
 """`subprocess.run` as it was before any test replaced it."""
@@ -228,15 +228,15 @@ def test_the_helper_answers_a_request_on_stdin(repo: Path, tracked: list[str]) -
 def test_the_helper_imports_nothing_from_this_package() -> None:
     """The reason it is fast enough to be worth starting.
 
-    `import wsindex.ingest` costs 30 ms of unrelated imports, measured,
+    `import thulr.ingest` costs 30 ms of unrelated imports, measured,
     against a 21 ms bare interpreter — which would move the break-even
-    from four files to nearer ten. A stray `from wsindex...` here would
+    from four files to nearer ten. A stray `from thulr...` here would
     not fail any other test; it would quietly make the threshold wrong.
     """
     source = Path(blaming.__file__).read_text()
 
     offenders = [
-        line for line in source.splitlines() if line.startswith(("import wsindex", "from wsindex"))
+        line for line in source.splitlines() if line.startswith(("import thulr", "from thulr"))
     ]
 
     assert offenders == []
@@ -307,11 +307,11 @@ def test_the_helpers_own_git_returns_porcelain_for_a_tracked_file(repo: Path) ->
 
 def spawns_during_index(root: Path, home: Path, monkeypatch: pytest.MonkeyPatch) -> int:
     """How many processes an index run starts *from this process*."""
-    from wsindex.config import Config, Repository
-    from wsindex.embed import FakeEmbedder
-    from wsindex.links import LinkStore
-    from wsindex.pipeline import Pipeline
-    from wsindex.store import LanceDBStore
+    from thulr.config import Config, Repository
+    from thulr.embed import FakeEmbedder
+    from thulr.links import LinkStore
+    from thulr.pipeline import Pipeline
+    from thulr.store import LanceDBStore
 
     started = 0
 

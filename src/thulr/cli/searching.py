@@ -1,0 +1,254 @@
+"""Commands that read the index: search, refs, why."""
+
+import re
+from typing import Annotated
+
+import typer
+
+from thulr.cli.composition import (
+    build_pipeline,
+    config_or_default,
+    require_config_file,
+)
+from thulr.links import KIND_LABELS, OCCURRENCE_ORDER, Edge, LinkKind
+from thulr.model import Kind, SearchFilter
+from thulr.pipeline import Authorship
+from thulr.ui import render_hits
+
+DEFAULT_TOP = 20
+"""How many hits `thulr search` returns when nobody says otherwise.
+
+Ten from the first day, on nothing. Measured on the 355 harvested
+questions with the shipped configuration — the local model, no
+reranker — counting both what is found and what has to be scrolled past
+to find it:
+
+| k      | answered | rows | terminal lines |
+| ------ | -------: | ---: | -------------: |
+| 5      |      132 |    5 |            ~40 |
+| 10     |      173 |   10 |            ~80 |
+| **20** |  **209** |   20 |           ~160 |
+| 30     |      226 |   30 |           ~240 |
+| 50     |      248 |   50 |           ~400 |
+
+No knee — the return per row falls smoothly — so this is a price rather
+than an optimum, and the price is one more screen of a rich table for
+thirty-six more answers. Past twenty each screen buys less than the one
+before it.
+
+Two things made ten look wrong before this was measured. The developer
+document tells its reader to type `-k 50 --kind code --kind doc`, and a
+document advising its way around a default is a default asking to be
+changed. And the rewriting sweep found that depth alone is worth +75
+answers where the whole rewriting stage is worth +25.
+
+The MCP surface is twenty for a different reason — its caller may have no
+file to open — and the two agreeing is a coincidence worth noticing
+rather than a rule."""
+
+
+def search(
+    query: str,
+    top: Annotated[int, typer.Option("--top", "-k", help="How many hits")] = DEFAULT_TOP,
+    repo: Annotated[str | None, typer.Option("--repo", help="Restrict to a single repo id")] = None,
+    lang: Annotated[
+        list[str] | None,
+        typer.Option("--lang", help="Restrict to a language (repeat for OR)"),
+    ] = None,
+    kind: Annotated[
+        list[Kind] | None,
+        typer.Option("--kind", help="Restrict to a Kind (code/config/doc; repeat for OR)"),
+    ] = None,
+    path: Annotated[
+        str | None,
+        typer.Option("--path", help="Path glob (`*`, `?` wildcards)"),
+    ] = None,
+    symbol: Annotated[
+        str | None, typer.Option("--symbol", help="Substring of the chunk symbol")
+    ] = None,
+) -> None:
+    """Search all indexed repos, best hits first.
+
+    Scope flags stack: --repo narrows the dataset list, structural
+    filters (--lang/--kind/--path/--symbol) go down to the store as a
+    prefilter (top-k over the filtered subset, not slashed out of it).
+    """
+    pipeline = build_pipeline()
+    candidate = SearchFilter(
+        lang=tuple(lang or ()),
+        kind=tuple(kind or ()),
+        path=path,
+        symbol=symbol,
+    )
+    filters: SearchFilter | None = None if candidate.is_empty else candidate
+    try:
+        hits = pipeline.search(query, k=top, repo=repo, filters=filters)
+        skipped = pipeline.unsearched(repo)
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    if skipped:
+        # Before the results, not after: this changes how they should be
+        # read. A repo that was never indexed takes no part in any
+        # search, so "nothing found there" was never something this
+        # answer had the standing to say.
+        typer.echo(
+            "warning: not searched (never indexed): " + ", ".join(skipped) + " — run `thulr index`",
+            err=True,
+        )
+    if not hits:
+        typer.echo("no results")
+        return
+    render_hits(hits)
+
+
+def refs(name: str) -> None:
+    """Everything that names something: a setting, a port, a ticket, a url.
+
+    The inverted index over the links `index` recorded. Ask it about a
+    port and it answers who reads it and who publishes it; about a
+    ticket, which commits mention it; about a function, where it is
+    defined and which files name it; about a setting, which config file
+    declares it and what names it in code.
+
+    Spelling need not match. `max_retries` in a yaml and `MaxRetries` in
+    the code that reads it are one question, and this is the case `grep`
+    cannot serve at all — neither `-w` nor `-i` bridges them. A hit under
+    another spelling is labelled with the one actually found.
+
+    That last one is not "who calls this": a name in a comment or a
+    string counts, and nothing resolves which definition a use refers to.
+    Code-to-code *call* edges remain deferred until they can be shown to
+    pay for their noise (ADR-9 measured 11% of resolvable call names as
+    ambiguous). What is here is the cheaper claim — this name occurs
+    here — which is a search result rather than a call graph.
+
+    Each occurrence says which sort it is, and they are reported calls
+    first, comments last. That ordering is most of what resolution would
+    have bought, at the price of a regular expression.
+    """
+    config = config_or_default()
+    require_config_file(config)
+    # Through the pipeline, not straight into the link store. This
+    # command held its own `LinkStore` and called `by_name` on it, which
+    # is the same bypass the MCP tool had and was fixed for — and it was
+    # not a tidiness point: the second arm of `references`, which reads
+    # occurrences out of the text index, reached the MCP tool and never
+    # reached here. A tier-2 run said so by printing the same counts to
+    # the digit as the run before the arm existed.
+    edges = build_pipeline().references(name)
+    if not edges:
+        typer.echo(f"no links named {name!r}")
+        return
+    typer.echo(name)
+    for kind, label in KIND_LABELS.items():
+        group = [edge for edge in edges if edge.kind is kind]
+        if group:
+            _echo_group(label, group, asked=name)
+    if any(edge.kind is LinkKind.READS_KEY for edge in edges) and not any(
+        edge.kind is LinkKind.DECLARES for edge in edges
+    ):
+        # The drift report, narrowed to one name. Worth saying here too:
+        # someone asking about a port is exactly who needs to know.
+        typer.echo("  (nothing declares it — code and configuration have drifted)")
+
+
+def _echo_group(label: str, group: list[Edge], *, asked: str) -> None:
+    """One relation's edges, in the order somebody asking would want.
+
+    The spelling that was asked for first, then calls before type
+    references before comments — which is most of what resolving a name
+    to a definition would have bought, at the price of a regular
+    expression. Edges with nothing to say about it keep the file order
+    they were read in.
+    """
+    group.sort(
+        key=lambda edge: (
+            edge.name != asked,
+            OCCURRENCE_ORDER[edge.via] if edge.via else 0,
+        )
+    )
+    typer.echo(f"  {label}:")
+    for edge in group:
+        suffix = f"  -> {edge.url}" if edge.url else ""
+        where = f"  ({edge.via})" if edge.via else ""
+        # A hit found under a different spelling says so. Asking for
+        # `max_retries` and being shown `MaxRetries` without being told
+        # is the search quietly answering a question that was not asked.
+        spelling = f"  [{edge.name}]" if edge.name != asked else ""
+        typer.echo(f"    {edge.repo}/{edge.path}:{edge.line}{where}{spelling}{suffix}")
+
+
+def why(target: str) -> None:
+    """Why a definition looks the way it does: the commits that wrote it.
+
+    Definition -> blame edges -> commit messages, plus whatever those
+    commits pointed at outside the repository. The reasoning behind a
+    design decision usually lives in a commit message and nowhere else;
+    this is the path to it.
+
+    `target` is a symbol name or a place:
+
+        $ thulr why chunk_markdown
+        $ thulr why src/thulr/ingest/text_chunker.py:42
+
+    The second is how the question usually arrives — somebody is reading
+    a line and does not know why it is there. Asking them to name the
+    enclosing function first is asking them to do half the lookup by
+    hand.
+    """
+    config = config_or_default()
+    require_config_file(config)
+    definitions = build_pipeline().why(target)
+    if not definitions:
+        # Exit 0, like `refs`. Looking and not finding is an answer, and
+        # the two commands used to disagree about that — `why` exited 1
+        # where `refs` exited 0 for the same situation, which is the kind
+        # of difference a script discovers the hard way. Code 1 is kept
+        # for "could not look".
+        typer.echo(f"no definition found for {target!r}")
+        return
+    for definition in definitions:
+        typer.echo(f"{definition.hit.symbol}  {definition.hit.location}")
+        if not definition.commits:
+            typer.echo("  (no commit recorded — run `thulr index` to build blame edges)")
+            continue
+        typer.echo("  written by:")
+        for author in definition.commits:
+            _echo_commit(author)
+        typer.echo("")
+
+
+_TRAILER = re.compile(r"^[A-Z][A-Za-z-]+:\s")
+"""A git trailer — `Co-Authored-By:`, `Signed-off-by:`, `Reviewed-by:`.
+Metadata about the commit, not the reasoning behind the code, and `why`
+asks about the latter."""
+
+
+def _reasoning(message: str) -> list[str]:
+    """A commit message with its trailers cut off, blank lines dropped.
+
+    The body is the answer `why` exists to give, so it is kept whole —
+    but a wall of `Co-Authored-By` at the end is noise between the reader
+    and the next commit.
+    """
+    lines = [line.strip() for line in message.splitlines() if line.strip()]
+    while len(lines) > 1 and _TRAILER.match(lines[-1]):
+        lines.pop()
+    return lines
+
+
+def _echo_commit(author: Authorship) -> None:
+    """One commit behind a definition: its subject, then the rest of it."""
+    if author.message is None:
+        # Blamed to a commit an earlier run indexed, or one outside the
+        # window. Knowing which commit still answers "when did this
+        # change" — see `blame_links`.
+        typer.echo(f"    {author.commit}  (message not indexed)")
+        return
+    lines = _reasoning(author.message)
+    typer.echo(f"    {author.commit}  {lines[0]}")
+    for line in lines[1:]:
+        typer.echo(f"        {line}")
+    for reference in author.references:
+        typer.echo(f"        see {reference.name} -> {reference.url}")

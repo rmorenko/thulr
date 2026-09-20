@@ -1,9 +1,9 @@
-# WSIndex
+# Thulr
 
-[![CI](https://github.com/rmorenko/wsindex/actions/workflows/ci.yml/badge.svg)](https://github.com/rmorenko/wsindex/actions/workflows/ci.yml)
-[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Frmorenko%2Fwsindex%2Fbadges%2Fcoverage.json)](https://github.com/rmorenko/wsindex/actions/workflows/ci.yml)
+[![CI](https://github.com/rmorenko/thulr/actions/workflows/ci.yml/badge.svg)](https://github.com/rmorenko/thulr/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Frmorenko%2Fthulr%2Fbadges%2Fcoverage.json)](https://github.com/rmorenko/thulr/actions/workflows/ci.yml)
 
-**WSIndex** is a CLI that indexes a developer workspace — several
+**Thulr** is a CLI that indexes a developer workspace — several
 repositories at once — and finds where things live, with exact
 `file:line` locations. Code (Python, JavaScript/JSX, TypeScript/TSX, Java,
 C, C++, C#, Go, Rust, Kotlin, PHP, Ruby), front-end components (Vue,
@@ -34,7 +34,7 @@ only it answers against 21 only grep answers, p = 0.0016. **At depth
 three it does not**: 62 to 71, and that difference is noise (p = 0.28).
 If you know the identifier, grep still puts it in front of you faster.
 What the default is for is the 97 questions of 204 where grep returned
-more than twenty files and answered nothing in particular; wsindex puts
+more than twenty files and answered nothing in particular; thulr puts
 40 of those in its top ten.
 
 Fusing a lexical pass with the vector one is what holds the top of that
@@ -46,9 +46,9 @@ It costs nothing and sends nothing.
 tenth of the reading.** The table above ranks *hits*, and a rank is not
 work saved, so the same 204 tasks were given to two workers under one
 token budget — `grep` reading a window around each match the way `rg -C`
-shows it, wsindex reading the line ranges it ranked, both stopping when
+shows it, thulr reading the line ranges it ranked, both stopping when
 a file holding the answer was in front of them. On the 99 tasks both
-finished, the median was **1 263 tokens against 13 474**, and wsindex was
+finished, the median was **1 263 tokens against 13 474**, and thulr was
 cheaper on 85 of them. The worker is a fixed reading policy rather than a
 language model, so this measures the size of the pile each tool hands
 over — the part the tool controls — and not an agent's judgement.
@@ -74,28 +74,28 @@ blame to the commit message that explains it: right on 199 of 202 against
 
 ```bash
 uv sync --extra ml --extra ast   # engine + real model + tree-sitter grammars
-uv run wsindex init myws         # writes wsindex.toml in the current directory
-uv run wsindex add-repo wsindex ~/wsindex
-uv run wsindex index             # first run downloads the embedding model (~90 MB)
-uv run wsindex search "how are markdown files split into chunks"
-uv run wsindex why chunk_markdown        # the commits that wrote it, and why
-uv run wsindex refs 8080                 # everything that names this port
-uv run wsindex status                    # what is configured, and what the index holds
-uv run wsindex explain src/thing.tf      # why a file is (or is not) searchable
-uv run wsindex domains                   # what it is made of, and what is tangled
-uv run wsindex deps                      # which repos depend on which, declared or not
+uv run thulr init myws         # writes thulr.toml in the current directory
+uv run thulr add-repo thulr ~/thulr
+uv run thulr index             # first run downloads the embedding model (~90 MB)
+uv run thulr search "how are markdown files split into chunks"
+uv run thulr why chunk_markdown        # the commits that wrote it, and why
+uv run thulr refs 8080                 # everything that names this port
+uv run thulr status                    # what is configured, and what the index holds
+uv run thulr explain src/thing.tf      # why a file is (or is not) searchable
+uv run thulr domains                   # what it is made of, and what is tangled
+uv run thulr deps                      # which repos depend on which, declared or not
 ```
 
 Real output on this very repository:
 
 ```
-$ uv run wsindex index
+$ uv run thulr index
 files: 87  chunks: 1228  written: 1227  deleted: 0  commits: 95  in 6.42s
 
-$ uv run wsindex search "how are markdown files split into chunks" -k 3
-wsindex/README.md:14-38  0.707  ## Quickstart
-wsindex/tests/test_chunker.py:41-45  0.632  def test_doc_markdown_produces_sections() -> None:
-wsindex/src/wsindex/ingest/text_chunker.py:107-111  0.598  def chunk_text(text: str, *, repo: str, path: str, lang: str, kind: Kind) -> list[Chunk]:
+$ uv run thulr search "how are markdown files split into chunks" -k 3
+thulr/README.md:14-38  0.707  ## Quickstart
+thulr/tests/test_chunker.py:41-45  0.632  def test_doc_markdown_produces_sections() -> None:
+thulr/src/thulr/ingest/text_chunker.py:107-111  0.598  def chunk_text(text: str, *, repo: str, path: str, lang: str, kind: Kind) -> list[Chunk]:
 ```
 
 _(After this README itself gets indexed, it will match its own example
@@ -329,7 +329,7 @@ line it set before measuring.
 Read the descriptive row for what it settles and what it costs. **The
 need is not our claim: `ripgrep` answers zero of those 42.** A tester
 wrote them as what a developer joining the codebase would ask, before
-wsindex was allowed to run. Half of what a person wants to know is
+thulr was allowed to run. Half of what a person wants to know is
 outside what grep can reach at all, and that is the case for this tool
 existing.
 
@@ -520,17 +520,17 @@ extractor can be bought later for the ones that earn it. Point a suffix
 at a language that *does* have a grammar — `".pom" = { lang = "xml" }` —
 and it gets the syntax tree for free.
 
-Anything wsindex does not recognize in a repo entry is an error rather
+Anything thulr does not recognize in a repo entry is an error rather
 than a shrug: a misspelled `ignores` that silently indexed everything it
 was meant to exclude is the mistake this format invites most.
 
 That check runs when a command runs. To get it while you are still
-typing, point your editor at `wsindex.schema.json` — one line at the top
+typing, point your editor at `thulr.schema.json` — one line at the top
 of the file, understood by taplo, VS Code's Even Better TOML and the
 JetBrains TOML plugin:
 
 ```toml
-#:schema https://raw.githubusercontent.com/rmorenko/wsindex/main/wsindex.schema.json
+#:schema https://raw.githubusercontent.com/rmorenko/thulr/main/thulr.schema.json
 ```
 
 The schema is *generated* from the same constants the validator uses
@@ -565,29 +565,29 @@ indexed like any other. Untracked files count too, as long as
 `.gitignore` does not exclude them.
 
 Six rules can leave a file out, and from outside they all used to look
-the same: the file was simply absent. `wsindex explain` names the one
+the same: the file was simply absent. `thulr explain` names the one
 that caught yours, because each points at a different fix.
 
 ```console
-$ wsindex explain src/schema.tf
+$ thulr explain src/schema.tf
 r/src/schema.tf: not indexed — no language claims this suffix; add a `formats` entry for it
 
-$ wsindex explain src/main.py
+$ thulr explain src/main.py
 r/src/main.py: indexed as python (code)
   7 chunk(s), 6 with a symbol
 
-$ wsindex explain src/half-written.py
+$ thulr explain src/half-written.py
 r/src/half-written.py: indexed as python (code)
   2 chunk(s), but the python grammar reported errors — the parts it could not read are indexed as text, not definitions
 ```
 
-`wsindex status` answers the other half — whether the index has run at
+`thulr status` answers the other half — whether the index has run at
 all, and at which commit:
 
 ```console
-$ wsindex status
+$ thulr status
 repos:
-  self -> /Users/me/wsindex  (indexed 2026-09-10 08:47 at e15022e)
+  self -> /Users/me/thulr  (indexed 2026-09-10 08:47 at e15022e)
   new  -> /Users/me/other    (not indexed)
 ```
 
@@ -596,8 +596,8 @@ A repo that has never been indexed takes no part in any search, so
 answer look like a whole one:
 
 ```console
-$ wsindex search "how are chunks deduplicated"
-warning: not searched (never indexed): new — run `wsindex index`
+$ thulr search "how are chunks deduplicated"
+warning: not searched (never indexed): new — run `thulr index`
 ```
 
 ## Incremental indexing
@@ -621,7 +621,7 @@ The middle row is the one that matters and it holds: re-running an
 unchanged workspace does not get slower as the corpus grows — 0.68 s on
 125 353 chunks. The bottom row does not hold, and the reason is that
 embedding one chunk still costs loading the model, which the unchanged
-case skips entirely. `wsindex shell` pays it once.
+case skips entirely. `thulr shell` pays it once.
 
 Two conditions put a repo on that fast path: it must be a git repository
 (a plain directory is a configuration error, not a silent fallback), and
@@ -636,7 +636,7 @@ that offers three causes names none of them when the real one is a
 fourth:
 
 ```console
-$ wsindex index
+$ thulr index
 files: 122  chunks: 1795  written: 1795  deleted: 0  commits: 115  in 8.71s
 note: full pass for self — uncommitted work, which a commit-to-commit diff cannot see; commit or stash it
 warning: could not read 1 tracked file(s) — self/src/locked.py
@@ -650,7 +650,7 @@ definitions, which is worse to search and — until it says so —
 impossible to notice. Syntax newer than the installed grammar, and a
 `formats` entry aimed at the wrong language, both land here.
 
-**When the message is not enough, `WSINDEX_DEBUG=1` opens the door.**
+**When the message is not enough, `THULR_DEBUG=1` opens the door.**
 The traceback comes through instead of one tidy line, the library's own
 log records reach stderr, and blame runs in a single thread so a
 breakpoint lands where you put it. A variable rather than a flag, because
@@ -658,10 +658,10 @@ by the time you want it the command has already failed — set it and
 repeat the same line.
 
 ```console
-$ wsindex index
-error: self/src/wsindex/pipeline.py: RuntimeError: the chunker fell over
+$ thulr index
+error: self/src/thulr/pipeline.py: RuntimeError: the chunker fell over
 
-$ WSINDEX_DEBUG=1 wsindex index
+$ THULR_DEBUG=1 thulr index
 ...the whole traceback, with source context
 ```
 
@@ -678,13 +678,13 @@ one "last indexed commit".
 
 ## Repos the workspace fetches for itself
 
-Give a repo a `remote` and `wsindex sync` keeps the working copy current
+Give a repo a `remote` and `thulr sync` keeps the working copy current
 — clone it if `path` does not exist yet, fast-forward it afterwards, then
 re-index whatever moved:
 
 ```bash
-uv run wsindex add-repo app ~/checkouts/app --remote https://github.com/you/app.git
-uv run wsindex sync
+uv run thulr add-repo app ~/checkouts/app --remote https://github.com/you/app.git
+uv run thulr sync
 ```
 
 ```
@@ -713,8 +713,8 @@ It takes a name or a place, because the question usually arrives as a
 place: you are reading a line and do not know why it is there.
 
 ```console
-$ wsindex why chunk_markdown
-$ wsindex why src/wsindex/ingest/text_chunker.py:42
+$ thulr why chunk_markdown
+$ thulr why src/thulr/ingest/text_chunker.py:42
 ```
 
 **This is the strongest thing measured in this repository.** Over 202
@@ -725,8 +725,8 @@ what a person reaches for — managed 174, and lost the discordant pairs
 in its history, and this is the path to it:
 
 ```
-$ uv run wsindex why add_chunks
-LanceDBStore.add_chunks  self/src/wsindex/store/lancedb.py:171-209
+$ uv run thulr why add_chunks
+LanceDBStore.add_chunks  self/src/thulr/store/lancedb.py:171-209
   written by:
     3964bb7  feat: LanceDBStore — single-table vector store per ADR-7
         dedup before embedding (batch-internal included), one Lance commit
@@ -738,13 +738,13 @@ LanceDBStore.add_chunks  self/src/wsindex/store/lancedb.py:171-209
 commit, a url or a function, and it answers who names it.
 
 ```
-$ uv run wsindex refs 8080
+$ uv run thulr refs 8080
 8080
   read by:
     svc/client.py:1
   (nothing declares it — code and configuration have drifted)
 
-$ uv run wsindex refs provisionContext
+$ uv run thulr refs provisionContext
 provisionContext
   defined in:
     caddy/caddy.go:479
@@ -781,7 +781,7 @@ The case it wins is one spelling of a setting reaching another, because
 that is the one `grep` cannot serve at all:
 
 ```
-$ uv run wsindex refs trusted_proxies
+$ uv run thulr refs trusted_proxies
 trusted_proxies
   declared by:
     caddy/caddytest/integration/caddyfile_adapt/...json:14
@@ -831,10 +831,10 @@ reads the history too: each message becomes a searchable chunk, and
 its lines.
 
 ```
-$ uv run wsindex index
+$ uv run thulr index
 files: 87  chunks: 1228  written: 1227  deleted: 0  commits: 95
 
-$ uv run wsindex search "why is dedup done before embedding" --kind commit
+$ uv run thulr search "why is dedup done before embedding" --kind commit
 ```
 
 Commits are their own `--kind`, not documents: folding them into `doc`
@@ -918,7 +918,7 @@ an external source stays proportional to what the repository actually
 mentions.
 
 ```console
-$ wsindex fetch https://github.com/astral-sh/uv/issues/1
+$ thulr fetch https://github.com/astral-sh/uv/issues/1
 https://github.com/astral-sh/uv/issues/1
 title: Add basic GitHub Actions CI
 author: charliermarsh
@@ -948,7 +948,7 @@ markup to 6.9 KB of text.
 
 `token_env` names an **environment variable**, never a token. The config
 file gets committed; the secret is read at fetch time and stored nowhere
-— the same rule the S3 backend and `wsindex sync` keep. A connector
+— the same rule the S3 backend and `thulr sync` keep. A connector
 configured with a token env var that is not set refuses to run rather
 than falling back to an anonymous request: GitHub answers 404 for a
 private repository, which would otherwise read as "no such issue" and
@@ -962,19 +962,19 @@ keep it, since that is the server it was sent to.
 
 ## Teaching it a new source
 
-The two connectors above are what wsindex ships with, not what it can
+The two connectors above are what thulr ships with, not what it can
 fetch. A source is one `Connector` subclass, and an installed package can
-supply one without any change to wsindex — the same seam the language
+supply one without any change to thulr — the same seam the language
 plugins use. The name on the left is the `type` a config entry asks for:
 
 ```toml
 # in your plugin's pyproject.toml
-[project.entry-points."wsindex.connectors"]
-notion = "wsindex_connector_notion:NotionConnector"
+[project.entry-points."thulr.connectors"]
+notion = "thulr_connector_notion:NotionConnector"
 ```
 
 ```python
-from wsindex.connectors import Connector, Document
+from thulr.connectors import Connector, Document
 
 
 class NotionConnector(Connector):
@@ -993,7 +993,7 @@ name that already exists — `github` means the built-in, and a config that
 says so must keep meaning it. A broken plugin is a warning and a skip,
 never a crash.
 
-[`examples/wsindex-connector-notion`](examples/wsindex-connector-notion/)
+[`examples/thulr-connector-notion`](examples/thulr-connector-notion/)
 is the worked one, and it is Notion because Notion's API returns neither
 markdown nor text: a page is a tree of blocks, so the connector has to
 rebuild the document rather than pass it along. That is the case most
@@ -1017,11 +1017,11 @@ urls = [
 ```
 
 ```console
-$ wsindex sync
+$ thulr sync
 docs: 4 added
 files: 4  chunks: 25  written: 25  deleted: 0  commits: 1
 
-$ wsindex sync
+$ thulr sync
 docs: up to date (4 documents)
 files: 0  chunks: 0  written: 0  deleted: 0  commits: 0
 ```
@@ -1046,13 +1046,13 @@ history whose job is to say when things changed must not claim one.
 
 ## Drift between code and configuration
 
-While indexing, wsindex notes two things: ports that code expects to
+While indexing, thulr notes two things: ports that code expects to
 reach, and ports that configuration publishes. A reference nothing
 answers is reported — that is the only automatic evidence that the two
 have grown apart:
 
 ```
-$ uv run wsindex index
+$ uv run thulr index
 files: 2  chunks: 3  written: 3  deleted: 0  commits: 1
 drift: 1 unresolved config reference(s), first at svc/client.py:1 -> 8080
 ```
@@ -1069,24 +1069,24 @@ hand. See [ADR-9](docs/adr/adr-009-links-as-entities.md).
 
 ## Asking many questions at once
 
-Most of a `wsindex search` is spent before it searches anything: loading
-the embedding model, opening the store. `wsindex shell` pays that once.
+Most of a `thulr search` is spent before it searches anything: loading
+the embedding model, opening the store. `thulr shell` pays that once.
 
 ```bash
 uv sync --extra shell
-uv run wsindex shell
+uv run thulr shell
 ```
 
 ```
-wsindex> how are chunks deduplicated --lang python
-  1  0.71  wsindex/src/wsindex/store/lancedb.py  171-209  add_chunks
-  2  0.63  wsindex/tests/test_lancedb_store.py    90-101  test_duplicates…
-wsindex> 1            # show that hit in full, highlighted
-wsindex> :open 1      # and in $EDITOR, at the right line
+thulr> how are chunks deduplicated --lang python
+  1  0.71  thulr/src/thulr/store/lancedb.py  171-209  add_chunks
+  2  0.63  thulr/tests/test_lancedb_store.py    90-101  test_duplicates…
+thulr> 1            # show that hit in full, highlighted
+thulr> :open 1      # and in $EDITOR, at the right line
 ```
 
 Arrow keys walk the history, Tab completes flags and repo ids, and the
-query flags are the ones `wsindex search` takes — the shell is another
+query flags are the ones `thulr search` takes — the shell is another
 adapter over the same library, so `--lang python` means the same thing in
 both.
 
@@ -1097,7 +1097,7 @@ that no plugin has to exist:
 
 ```bash
 uv sync --extra mcp
-uv run wsindex mcp        # stdio; point a client's command at this
+uv run thulr mcp        # stdio; point a client's command at this
 ```
 
 Three tools — `search`, `refs` and `why` — the same three commands worth
@@ -1105,7 +1105,7 @@ calling from outside. `index` is deliberately not one of them: a tool an
 agent may call again without thinking should not be minutes of CPU and
 somebody's git remotes.
 
-A workspace already running `wsindex serve` offers the same tools over
+A workspace already running `thulr serve` offers the same tools over
 HTTP at `/mcp`, from the same tool code. Two transports, one
 implementation.
 
@@ -1150,13 +1150,13 @@ searches:
 
 ```bash
 uv sync --extra server
-export WSINDEX_TOKEN=...
-uv run wsindex serve            # http://127.0.0.1:8000, admin at /admin
+export THULR_TOKEN=...
+uv run thulr serve            # http://127.0.0.1:8000, admin at /admin
 ```
 
 ```toml
 [server]
-token_env = "WSINDEX_TOKEN"   # the variable's name, never the token
+token_env = "THULR_TOKEN"   # the variable's name, never the token
 interval = 900                # seconds between automatic syncs; 0 = off
 ```
 
@@ -1169,7 +1169,7 @@ at it; the body is ignored, since "something changed" is all an
 incremental run needs to hear. OpenAPI comes free at `/openapi.json`.
 
 `/admin` is a page with the repo list, a sync button, the recent runs and
-what gets asked — the same aggregate `wsindex stats` prints: how many
+what gets asked — the same aggregate `thulr stats` prints: how many
 searches, how long they took, the questions this corpus answered *worst*
 and the ones asked most.
 
@@ -1181,20 +1181,20 @@ authentication plus a log of other people's questions attributed to them.
 That is a privacy decision, not a feature of a page. So the page shows
 everyone's questions together, says so in those words, and names the two
 switches: `[stats] enabled = false` to stop recording,
-`wsindex stats --forget` to empty it.
+`thulr stats --forget` to empty it.
 
 `GET /metrics` is Prometheus exposition — request counts and durations by
 route, indexing runs by outcome, chunks written, when the last run
 succeeded. Behind the token, unlike `/healthz`: a probe is not a reader,
 and these describe the workspace. **No query text is ever a label**, which
-is both a cardinality rule and the same privacy rule `wsindex stats`
+is both a cardinality rule and the same privacy rule `thulr stats`
 follows. The 500 ms bucket is the SLO below, so compliance is a division
 of two scraped series rather than a recording rule:
 
 ```
-wsindex_http_request_seconds_bucket{route="/search",method="GET",le="0.5"} 238
-wsindex_index_runs_total{outcome="busy"} 7
-wsindex_last_index_success_timestamp_seconds 1.7889e+09
+thulr_http_request_seconds_bucket{route="/search",method="GET",le="0.5"} 238
+thulr_index_runs_total{outcome="busy"} 7
+thulr_last_index_success_timestamp_seconds 1.7889e+09
 ```
 
 **How much load it takes.** `poe load` starts a real server on a real
@@ -1260,7 +1260,7 @@ for what it is and why more processes are not the answer — and
 re-ranking is off by default.
 
 The cure itself:
-[`wsindex.ingest.blame`](src/wsindex/ingest/blame.py) hands the batch to a
+[`thulr.ingest.blame`](src/thulr/ingest/blame.py) hands the batch to a
 small child that imports nothing from this package, and the child does
 the spawning. Search during a full re-index went **1459 ms → 133 ms** p95,
 and a cold index got **11% faster** (8.18 s → 7.29 s) — those forks were
@@ -1336,12 +1336,12 @@ account.
 
 ## What you asked, and what it could not answer
 
-`wsindex stats` reads a log this machine keeps of its own searches — the
+`thulr stats` reads a log this machine keeps of its own searches — the
 quality loop the roadmap asks for, because ten invented acceptance
 queries decide less than however many the tool was actually asked.
 
 ```console
-$ wsindex stats
+$ thulr stats
 14 search(es) since 2026-09-10, picked 3
 waited: p50 2.3s  p95 2.4s (per command, model load included)
 answered worst:
@@ -1359,9 +1359,9 @@ one with no answer at 0.19–0.34 — so what is worth reading is the
 belongs to this model and this corpus, and a ranking does not go stale.
 
 The latency is labelled because it is honest and reads wrong without the
-label: every `wsindex search` is a fresh process, so it is mostly the
+label: every `thulr search` is a fresh process, so it is mostly the
 model load. `poe bench` measures the search itself, at 8 ms. The gap
-between those two numbers is the argument for `wsindex shell`.
+between those two numbers is the argument for `thulr shell`.
 
 A pick — opening a hit from the shell — is the only signal in this
 project that somebody *found* what they wanted, which is why the shell
@@ -1378,17 +1378,17 @@ do not belong in a team's database.
 enabled = false     # default: true
 ```
 
-`wsindex stats --forget` empties it. A log you cannot switch off or
+`thulr stats --forget` empties it. A log you cannot switch off or
 empty is a log you did not agree to.
 
 ## Reclaiming space
 
 Deleting a chunk hides it immediately but does not free its bytes, so an
-index that is edited often grows. `wsindex compact` is the pass that
+index that is edited often grows. `thulr compact` is the pass that
 shrinks it:
 
 ```console
-$ wsindex compact
+$ thulr compact
 reclaimed 0.1 MB (1.7 MB -> 1.6 MB); 21 -> 2 versions
 ```
 
@@ -1437,18 +1437,18 @@ A different question from search, for a different reader: not "where is
 X" but "what are the parts, and what is tangled".
 
 ```
-$ uv run wsindex domains
+$ uv run thulr domains
 67 files in 9 packages
   ingest 28  (root) 12  cli 7  config 5  server 5  connectors 4  store 3  embed 2  rank 1
 agreement 57% (meaning recovers the layout; 11% would be chance)
 
 filed away from their subject:
-  src/wsindex/paths.py  [(root)]  0.696
-      near src/wsindex/cli/composition.py, src/wsindex/config/__init__.py
+  src/thulr/paths.py  [(root)]  0.696
+      near src/thulr/cli/composition.py, src/thulr/config/__init__.py
 
 coupled across packages (35), most-changed first:
-   11 commits  similarity +0.748   src/wsindex/pipeline.py + src/wsindex/store/base.py
-   10 commits  similarity +0.643   src/wsindex/pipeline.py + src/wsindex/server/api.py
+   11 commits  similarity +0.748   src/thulr/pipeline.py + src/thulr/store/base.py
+   10 commits  similarity +0.643   src/thulr/pipeline.py + src/thulr/server/api.py
 ```
 
 Two signals, and the value is where they disagree. **Meaning** comes from
@@ -1482,7 +1482,7 @@ answering them.
 ## The same code in two places
 
 ```
-$ uv run wsindex dupes
+$ uv run thulr dupes
 29543 of 86837 code chunks in openemr were long enough to fingerprint; 26288 duplicate pair(s) in 2230 place(s)
 
 wholesale  4911 pair(s)  within openemr/Documentation/EHI_Export/docs/tables
@@ -1536,13 +1536,13 @@ copies. `--min` moves it.
 ## Front-end components
 
 A `.vue` or `.svelte` file is not one language, it is three: a template,
-a script and a style block. wsindex splits the file and hands each part
+a script and a style block. thulr splits the file and hands each part
 to the language it is actually written in — so a function inside
 `<script lang="ts">` is chunked by the real TypeScript extractor, and is
 found exactly the way a function in a `.ts` file is.
 
 ```
-$ uv run wsindex search "how is the title computed" --lang vue
+$ uv run thulr search "how is the title computed" --lang vue
 src/Card.vue:10-12  0.584  export function useTitle(): string {
 ```
 
@@ -1554,20 +1554,20 @@ at a time.
 
 ## Teaching it a new language
 
-The languages above are what wsindex ships with, not what it can index. A
+The languages above are what thulr ships with, not what it can index. A
 language is one `LanguageSpec` — how to recognize its files, and how to
 split them — and an installed package can supply one without any change
-to wsindex:
+to thulr:
 
 ```toml
 # in your plugin's pyproject.toml
-[project.entry-points."wsindex.languages"]
-lua = "wsindex_lang_lua:LANGUAGES"
+[project.entry-points."thulr.languages"]
+lua = "thulr_lang_lua:LANGUAGES"
 ```
 
 ```python
-from wsindex.ingest import GrammarSpec, LanguageSpec
-from wsindex.ingest.ast import Span, def_span, symbol_name
+from thulr.ingest import GrammarSpec, LanguageSpec
+from thulr.ingest.ast import Span, def_span, symbol_name
 
 
 def lua_spans(root, lines, covered) -> list[Span]:
@@ -1597,20 +1597,20 @@ routes them through the grammar. Whatever your extractor does not claim
 becomes a "gap" chunk, so every non-blank line is indexed exactly once
 either way. A broken plugin is a warning and a skip, never a crash.
 
-[`examples/wsindex-lang-lua/`](examples/wsindex-lang-lua/) is a complete,
+[`examples/thulr-lang-lua/`](examples/thulr-lang-lua/) is a complete,
 installable plugin — every spelling of a Lua function, with its comment
 block attached — and a
-[guide for plugin authors](examples/wsindex-lang-lua/README.md):
+[guide for plugin authors](examples/thulr-lang-lua/README.md):
 
 ```bash
-uv pip install -e examples/wsindex-lang-lua
-uv run wsindex index          # .lua files are now indexed
+uv pip install -e examples/thulr-lang-lua
+uv run thulr index          # .lua files are now indexed
 ```
 
 ## Storage
 
 The vector index is an embedded [LanceDB](https://github.com/lancedb/lancedb)
-database at the `[store] uri` from `wsindex.toml` (default: `.wsindex/`
+database at the `[store] uri` from `thulr.toml` (default: `.thulr/`
 next to the config). Fully offline once the model is downloaded;
 embedding runs in-process. The uri may also point at S3-compatible
 storage (`s3://bucket/prefix`) — endpoint and credentials come from the
@@ -1622,7 +1622,7 @@ corpus (3458 chunks, real model) indexing takes 7.8s on a local path vs
 storages return bit-identical results (cross-check delta 0.0000). A MinIO
 for local experiments ships in the compose file
 (`docker compose up -d minio minio-init` — the init service creates the
-`wsindex` bucket).
+`thulr` bucket).
 
 **Search is an exact scan, and that has a ceiling.** No approximate
 index is built: every vector in the dataset is compared, which is the
@@ -1656,7 +1656,7 @@ constantly and read by exact key.
 ```toml
 [links]
 backend = "postgres"          # default: sqlite, which needs no service
-dsn_env = "WSINDEX_LINKS_DSN" # the variable's name, never the string
+dsn_env = "THULR_LINKS_DSN" # the variable's name, never the string
 ```
 
 SQLite is the default and the only backend that needs nothing — offline
@@ -1665,7 +1665,7 @@ a **shared** index: `[store] uri = "s3://..."` makes the vectors common
 to a team, and links are workspace data by the same argument (every
 field of one is derived from content, so two machines indexing the same
 commit produce identical links). Leaving them on one machine was an
-asymmetry, and `wsindex status` says so when it sees one.
+asymmetry, and `thulr status` says so when it sees one.
 
 One database per shared index, exactly as there is one `[store] uri`:
 the table is keyed by repo id and nothing else, so two workspaces
@@ -1677,7 +1677,7 @@ dialect carries everything SQLite and Postgres spell differently, so
 parity is a property of the code rather than a discipline. The contract
 suite runs against both; the Postgres half skips itself when no database
 answers (`docker compose up -d postgres` makes it run, and the compose
-service reads `WSINDEX_PG_*` rather than the generic `POSTGRES_*`, which
+service reads `THULR_PG_*` rather than the generic `POSTGRES_*`, which
 a shared `.env` had already claimed).
 
 The design decisions are recorded in
@@ -1691,9 +1691,9 @@ with the numbers).
 | Extra    | Enables                                                                       | Without it                                                               |
 | -------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `ml`     | `sentence-transformers` embeddings (real semantic search)                     | `--provider fake`: deterministic pseudo-vectors, exact-text matches only |
-| `shell`  | `wsindex shell`: one loaded model, many questions (prompt-toolkit)            | a fresh process and a fresh model per search                             |
-| `mcp`    | `wsindex mcp`: the index as tools for an agent client                         | search from the CLI, HTTP or shell                                       |
-| `server` | `wsindex serve`: HTTP API, scheduler and admin page (FastAPI)                 | search from the CLI only                                                 |
+| `shell`  | `thulr shell`: one loaded model, many questions (prompt-toolkit)              | a fresh process and a fresh model per search                             |
+| `mcp`    | `thulr mcp`: the index as tools for an agent client                           | search from the CLI, HTTP or shell                                       |
+| `server` | `thulr serve`: HTTP API, scheduler and admin page (FastAPI)                   | search from the CLI only                                                 |
 | `ast`    | tree-sitter chunking for py/rs/ts/java code and toml/yaml/json/xml/Dockerfile | sliding-window text chunks for everything                                |
 
 Every grammar degrades independently: a language without its grammar falls
@@ -1731,7 +1731,7 @@ lists them.
 
 ## Is it any good? — the field trial
 
-wsindex was run on twenty workspaces that are not its own: 105
+thulr was run on twenty workspaces that are not its own: 105
 repositories from twenty GitHub organizations, with 204 questions written
 down before it was allowed to start, and a `ripgrep` control on every one.
 It indexes fourteen of the twenty properly, crashes outright on three, and

@@ -22,13 +22,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import wsindex.pipeline
+import thulr.pipeline
 from helpers import as_indexed
-from wsindex.config import Config, Repository
-from wsindex.embed import FakeEmbedder
-from wsindex.ingest import IndexState, NotAGitRepositoryError, Skip, chunk_file
-from wsindex.model import Chunk, Hit, Kind, SearchFilter, SourceFile
-from wsindex.pipeline import (
+from thulr.config import Config, Repository
+from thulr.embed import FakeEmbedder
+from thulr.ingest import IndexState, NotAGitRepositoryError, Skip, chunk_file
+from thulr.model import Chunk, Hit, Kind, SearchFilter, SourceFile
+from thulr.pipeline import (
     _CANDIDATE_MULTIPLIER,
     _QUOTA_MULTIPLIER,
     RERANK_BUDGET,
@@ -36,8 +36,8 @@ from wsindex.pipeline import (
     FullPass,
     Pipeline,
 )
-from wsindex.rank.reranker import FakeReranker
-from wsindex.store import LanceDBStore
+from thulr.rank.reranker import FakeReranker
+from thulr.store import LanceDBStore
 
 PY_TEXT = "def f():\n    return 1"
 
@@ -122,7 +122,7 @@ def add_repo(
 
 @pytest.fixture
 def store(tmp_path: Path, embedder: FakeEmbedder) -> LanceDBStore:
-    return LanceDBStore(uri=str(tmp_path / ".wsindex"), embedder=embedder)
+    return LanceDBStore(uri=str(tmp_path / ".thulr"), embedder=embedder)
 
 
 @pytest.fixture
@@ -723,7 +723,7 @@ def test_a_failure_while_chunking_says_which_file(
             raise RuntimeError("the chunker fell over")
         return real(text, source)
 
-    monkeypatch.setattr(wsindex.pipeline, "chunk_file", flaky)
+    monkeypatch.setattr(thulr.pipeline, "chunk_file", flaky)
 
     with pytest.raises(RuntimeError, match=r"repo1/src/later\.py.*the chunker fell over"):
         pipeline.index()
@@ -732,12 +732,12 @@ def test_a_failure_while_chunking_says_which_file(
 def test_the_original_failure_is_still_underneath(
     tmp_path: Path, pipeline: Pipeline, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Chained, not replaced: `WSINDEX_DEBUG` shows every frame, and a
+    # Chained, not replaced: `THULR_DEBUG` shows every frame, and a
     # caller can still see what really happened.
     def flaky(text: str, source: SourceFile) -> list[Chunk]:
         raise ZeroDivisionError("the real cause")
 
-    monkeypatch.setattr(wsindex.pipeline, "chunk_file", flaky)
+    monkeypatch.setattr(thulr.pipeline, "chunk_file", flaky)
 
     with pytest.raises(RuntimeError) as caught:
         pipeline.index()
@@ -770,8 +770,8 @@ def test_a_file_the_grammar_reads_is_not_reported(pipeline: Pipeline) -> None:
 
 
 def test_describe_reports_an_indexed_file(tmp_path: Path, pipeline: Pipeline) -> None:
-    # `wsindex explain` in library terms. It used to live in the CLI,
-    # which cost that adapter eight imports out of `wsindex.ingest` and
+    # `thulr explain` in library terms. It used to live in the CLI,
+    # which cost that adapter eight imports out of `thulr.ingest` and
     # put real analysis — parsed, or merely windowed — in a renderer.
     report = pipeline.describe(tmp_path / "repo1" / "src" / "main.py")
 
@@ -939,7 +939,7 @@ def test_history_may_not_take_the_whole_screen(
 
     assert len(hits) == 10
     commits = [h for h in hits if h.metadata["kind"] == Kind.COMMIT.value]
-    assert 0 < len(commits) <= int(10 * wsindex.pipeline.COMMIT_SHARE)
+    assert 0 < len(commits) <= int(10 * thulr.pipeline.COMMIT_SHARE)
 
 
 def test_the_quota_never_shortens_a_list_it_could_fill(
@@ -1002,7 +1002,7 @@ def test_fusion_keeps_the_same_file_in_two_repos_apart() -> None:
     # workspace of forks would lose a real answer per duplicate. Found by
     # a test that counted what the reranker was given and got five where
     # twelve were due.
-    from wsindex.pipeline import _fuse
+    from thulr.pipeline import _fuse
 
     def hit(repo: str) -> Hit:
         return Hit(score=1.0, native_id="same-sha", metadata={"repo": repo, "path": "a.py"})

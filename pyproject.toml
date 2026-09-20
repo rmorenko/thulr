@@ -3,15 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "wsindex"
-# The version lives in src/wsindex/__init__.py (__version__); hatchling
+name = "thulr"
+# The version lives in src/thulr/__init__.py (__version__); hatchling
 # extracts it at build time — single source of truth.
 dynamic = ["version"]
-description = "WSIndex — a learning CLI that indexes a developer workspace for semantic code and doc search."
+description = "Thulr — a learning CLI that indexes a developer workspace for semantic code and doc search."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{ name = "WSIndex contributors" }]
+authors = [{ name = "Thulr contributors" }]
 keywords = ["rag", "indexing", "search", "cli", "embeddings"]
 classifiers = [
   "Development Status :: 1 - Planning",
@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.scripts]
-wsindex = "wsindex.cli:run"
+thulr = "thulr.cli:run"
 
 [project.optional-dependencies]
 # `torch` is declared because `rank/reranker.py` imports it by name to
@@ -105,7 +105,7 @@ dev = [
   "pip-audit>=2.9,<3",
   "pyarrow-stubs>=20.0.0.20260819",
   # Dev only, and only to check one thing: that the generated
-  # `wsindex.schema.json` is a valid schema and accepts what the config
+  # `thulr.schema.json` is a valid schema and accepts what the config
   # validator accepts. A schema that lies is worse than none — it would
   # underline a working config in somebody's editor.
   "jsonschema>=4.25,<5",
@@ -121,15 +121,15 @@ dev = [
 build-constraint-dependencies = ["pathspec!=1.1.1"]
 
 [tool.hatch.version]
-path = "src/wsindex/__init__.py"
+path = "src/thulr/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/wsindex"]
+packages = ["src/thulr"]
 
 [tool.deptry]
 # The package under test is first-party; without this every internal
 # import reads as a transitive dependency and the real findings drown.
-known_first_party = ["wsindex"]
+known_first_party = ["thulr"]
 # The measuring harnesses import each other by putting `scripts/` on
 # `sys.path`. They are programs, not a package, and their imports are not
 # dependency declarations.
@@ -361,7 +361,7 @@ markers = ["slow: needs network and a real model download"]
 addopts = "-m 'not slow'"
 
 [tool.coverage.run]
-source = ["wsindex"]
+source = ["thulr"]
 
 [tool.coverage.report]
 fail_under = 90
@@ -375,8 +375,8 @@ help = "Install dependencies (uv sync)"
 cmd = "uv sync"
 
 [tool.poe.tasks.schema]
-help = "Regenerate wsindex.schema.json from the config validator"
-cmd = "python -c \"import json;from pathlib import Path;from wsindex.config.jsonschema import build,SCHEMA_FILE;Path(SCHEMA_FILE).write_text(json.dumps(build(),indent=2)+chr(10))\""
+help = "Regenerate thulr.schema.json from the config validator"
+cmd = "python -c \"import json;from pathlib import Path;from thulr.config.jsonschema import build,SCHEMA_FILE;Path(SCHEMA_FILE).write_text(json.dumps(build(),indent=2)+chr(10))\""
 
 [tool.poe.tasks.lint]
 help = "Run linter (ruff check)"
@@ -392,7 +392,7 @@ cmd = "pip-audit --progress-spinner off"
 
 [tool.poe.tasks.complexity]
 help = "Cognitive complexity: fail any function over the default 15"
-cmd = "complexipy src/wsindex"
+cmd = "complexipy src/thulr"
 
 [tool.poe.tasks.spell]
 help = "Spell check (codespell)"
@@ -411,16 +411,16 @@ help = "Run tests with coverage, fail under 90%"
 cmd = "pytest --cov --cov-report=term-missing"
 
 [tool.poe.tasks.run]
-help = "Run the wsindex CLI"
-cmd = "wsindex"
+help = "Run the thulr CLI"
+cmd = "thulr"
 
 [tool.poe.tasks.example-plugin]
 help = "Install both example plugins (language, connector) and run their tests"
 interpreter = "bash"
 shell = """
 set -eu -o pipefail
-uv pip install -q -e examples/wsindex-lang-lua -e examples/wsindex-connector-notion
-pytest examples/wsindex-lang-lua/tests examples/wsindex-connector-notion/tests
+uv pip install -q -e examples/thulr-lang-lua -e examples/thulr-connector-notion
+pytest examples/thulr-lang-lua/tests examples/thulr-connector-notion/tests
 """
 
 [tool.poe.tasks.bench]
@@ -504,7 +504,7 @@ sequence = ["fmt", "lint", "spell", "typecheck", "cov"]
 help = "Remove caches, build artifacts and index"
 interpreter = "bash"
 shell = """
-rm -rf .mypy_cache .ruff_cache .pytest_cache .wsindex build dist
+rm -rf .mypy_cache .ruff_cache .pytest_cache .thulr build dist
 rm -rf htmlcov .coverage coverage.xml
 find . -type d -name __pycache__ -exec rm -rf {} +
 find . -type d -name '*.egg-info' -exec rm -rf {} +

@@ -2,7 +2,7 @@
 
 Three separate claims, and only the first is about JSON. The other two
 are what make "derived from the rules" true rather than aspirational: a
-schema that has drifted from `wsindex.config.validate` would underline a
+schema that has drifted from `thulr.config.validate` would underline a
 config that works, which is worse than having no schema at all.
 """
 
@@ -16,9 +16,9 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 
-from wsindex.config.jsonschema import SCHEMA_FILE, build
-from wsindex.config.schema import Backend, Provider, RepoSource
-from wsindex.config.validate import REPO_KEYS, REQUIRED, validate
+from thulr.config.jsonschema import SCHEMA_FILE, build
+from thulr.config.schema import Backend, Provider, RepoSource
+from thulr.config.validate import REPO_KEYS, REQUIRED, validate
 
 GOOD = """
 [workspace]
@@ -37,7 +37,7 @@ metric = "cosine"
 enabled = true
 
 [server]
-token_env = "WSINDEX_TOKEN"
+token_env = "THULR_TOKEN"
 interval = 900
 
 [references]
