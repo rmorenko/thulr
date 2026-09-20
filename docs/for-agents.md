@@ -83,6 +83,18 @@ why(symbol)    — the commits that wrote a definition, and their messages
 
 Every answer carries `file:line` and the chunk text.
 
+**`search` may ask more than once.** With `[rewrite]` configured the
+question is also put in the words the code is likely to use and the lists
+are fused — worth +25 answers of 355 on the hosted configuration and +20
+on the local one. It is off by default and costs a model call per search.
+Nothing about the reply shape changes, so a client need not know; the
+latency does.
+
+An agent that already reformulates its own queries gains less from this
+than a person does, and that is not a guess — it is the mechanism the
+nine measurements above found. If your client rewrites questions itself,
+leave `[rewrite]` off and save the call.
+
 **`budget` caps the answer in tokens, which `k` cannot.** Ten hits are
 anywhere between four hundred tokens and eight thousand depending on what
 they are, and an agent filling a context window cannot spend "ten hits".

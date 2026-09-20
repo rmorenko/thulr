@@ -21,7 +21,7 @@ Replacing the embedder as well, which does send every chunk once, takes
 it to 132.
 
 So the decision in front of you is not "secure or insecure". It is which
-of four postures to buy, and three of them are defensible:
+posture to buy, and most of them are defensible:
 
 | Posture                 | Finds it (of 204) | What leaves        |
 | ----------------------- | ----------------: | ------------------ |
@@ -30,13 +30,32 @@ of four postures to buy, and three of them are defensible:
 | Hosted reranker         |               109 | Query + ~40 chunks |
 | Hosted embedder as well |               132 | Every chunk, once  |
 
+A fifth posture arrived later and is not in that column because it was
+measured on a different corpus; putting a rescaled number in a table of
+measured ones is how a table stops being evidence. On the 355 harvested
+questions, the **hosted rewriter** takes the fully local configuration
+from 138 answers to **158** (p = 0.0055), and the hosted embedder with
+its rewordings reaches 217 against 192.
+
 The first row is the default, sends nothing, and is already ahead of the
 control — 98 against ripgrep's 71, p = 0.0016. Fusing a lexical pass
 with the vector one is what holds the top of it: the second row is the
 same tool with that switched off, and it puts the right file *first* for
-1 question of 204 instead of 36. The third row is the one most
-organisations should argue about; it buys 11 answers for a query and
+1 question of 204 instead of 36. The reranker row is the one most
+organisations used to argue about; it buys 11 answers for a query and
 forty chunks per search.
+
+**The rewriter is the cheapest of the three by a wide margin.** It sends
+the question the user typed and no code at all — not a chunk, not a path,
+not a name. And the wire shape is the chat-completions one, so
+`[rewrite] url` may point at a model on the user's own machine, in which
+case it sends nothing anywhere.
+
+A caution that belongs here rather than in a footnote: the question a
+developer types is not always innocent. "Why does our Acme Bank
+reconciliation job drop rows" names a client. A rewriter sends that
+sentence to whoever `url` points at, and nothing else — which is far less
+than the rows below it, and not zero.
 
 ## What opens a socket, and when
 
@@ -47,12 +66,18 @@ forty chunks per search.
 | `wsindex sync` on a repo with a `remote` | Whatever `git fetch` sends                           | Only by not using it     |
 | `[embeddings] provider = "remote"`       | **Every chunk of every repo**                        | Yes — it is off          |
 | `[rank] provider = "remote"`             | The query and ~40 candidate chunks per search        | Yes — it is off          |
+| `[rewrite] enabled = true`               | **The question, and no code** — once per search      | Yes — it is off          |
 | `wsindex serve`                          | Binds a socket you asked it to bind                  | Yes                      |
 
 The model download is once and offline afterwards: loading tries the
 local cache before the network on every subsequent run.
 
-## The two remote options are not the same decision
+## The three remote options are not the same decision
+
+A **remote rewriter** sends one sentence per search: the question, as
+typed. No chunk, no path, no identifier. It is the only one of the three
+that can be pointed at `localhost` and keep the whole promise, because it
+speaks the chat-completions shape every local runner speaks.
 
 A **remote embedder** sends your whole corpus, once per index and again
 on every re-index. Sixteen thousand chunks for a small workspace.
@@ -61,11 +86,19 @@ A **remote reranker** sends the query and the candidates one search
 already found — about forty chunks, and only the ones related to what was
 asked. Three orders of magnitude less, and the index never leaves.
 
-If somebody asks for the quality of a hosted model, the second is almost
-always the one to grant: measured, it reaches the same 13 of 16 on
-identifier questions as replacing the embedder outright.
+If somebody asks for the quality of a hosted model, grant the rewriter
+first and the reranker second. The rewriter is the largest measured gain
+per byte sent by a wide margin, and the reranker reaches the same 13 of
+16 on identifier questions as replacing the embedder outright.
 
-Both name their key as `token_env` — **the name of an environment
+One thing the rewriter is **not**: a way to get hosted quality from a
+local model. Measured, `qwen2.5:3b` rewording on the same machine takes
+the local configuration from 138 answers to 131 — worse than leaving it
+off — and `qwen2.5:7b` reaches 140, which is break-even. The gain is the
+model's knowledge of what code is called, and a small model does not have
+it.
+
+All three name their key as `token_env` — **the name of an environment
 variable, never the key itself**. A token in a config file is a token in
 a git history. An unset variable is reported by name rather than as a
 401\.

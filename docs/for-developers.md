@@ -21,6 +21,15 @@ capability that makes this tool worth installing is the one that needs a
 hosted model; the fully local default is good at the questions grep is
 also good at.
 
+**One setting narrows that gap and sends no code.** `[rewrite]` asks a
+language model for the same question in the words the code is likely to
+use and fuses the lists — on 355 harvested questions it takes the fully
+local configuration from 138 answers to **158** (p = 0.0055) and the
+hosted one from 192 to **217** (p = 0.0002). What goes over the wire is
+your question and nothing else: no chunk, no path, no identifier. See
+"Asking in the code's own words" below before you turn it on, because a
+small model makes it worse.
+
 ## What the thing is
 
 You point it at the several git repositories you actually work in. It
@@ -136,6 +145,41 @@ including three that asked only where code lives and one that took the
 shell away. See [for-agents.md](for-agents.md) for the numbers and the
 mechanism.
 
+## Asking in the code's own words
+
+You know what you want; you do not know what the code calls it. That is
+the whole failure, and `[rewrite]` attacks it from the side you control —
+the question — rather than the side you do not.
+
+```toml
+[rewrite]
+enabled = true
+model = "claude-sonnet-4-5"
+url = "https://api.anthropic.com/v1/chat/completions"
+token_env = "ANTHROPIC_API_KEY"   # empty for a local server
+count = 3
+```
+
+| rewritten by       | answers of 355 | against as typed |      p |
+| ------------------ | -------------: | ---------------: | -----: |
+| nobody — as typed  |            138 |                — |      — |
+| `qwen2.5:3b` local |            131 |               -7 |   0.34 |
+| `qwen2.5:7b` local |            140 |               +2 |   0.88 |
+| a frontier model   |        **158** |          **+20** | 0.0055 |
+
+**Do not point it at a small model.** Three billion parameters is worse
+than leaving it off and seven is break-even, because what buys the gain
+is knowing what code is called rather than rearranging words: asked how
+to disable a suite's cleanup, the small model answers `disable_wiping`
+and `set_to_off`, the large one answers "option to skip truncation
+between tests". Only one of those contains a word the code uses and your
+question does not.
+
+It costs a call per search — a second or two, and whatever the model
+charges. It never fails your search: an unreachable model, a missing key
+or a useless answer all mean "no rewordings", and the search proceeds
+exactly as it would have.
+
 **A deeper list still pays, and it is a trade rather than a free win.**
 The default holds the answer for 98 of the 204, and
 
@@ -175,6 +219,10 @@ language says so instead of reporting `files: 30`.
 **Yes, if** you regularly arrive in code you did not write and ask about
 behaviour rather than names — and you are willing to configure a hosted
 embedder. That is the 21-of-42 case, and grep's score on it is zero.
+
+**Yes, mostly locally, if** you will turn on `[rewrite]` against a
+capable model: the index stays on your machine, only your question
+leaves, and the local configuration gains 20 answers of 355.
 
 **Yes, locally, if** you work across several repositories at once, at
 least one of them is large, and you spend real time looking for where

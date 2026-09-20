@@ -16,16 +16,19 @@ allowed to run, with every word of four letters or more mechanically
 checked absent from the answer file. `ripgrep` found none. wsindex finds
 21 of them — **with a hosted embedder**. With the model that ships, 1.
 
-So the two things a team wants from this tool are currently in tension,
-and you should know that on this page rather than at a security review:
+So the two things a team wants from this tool pull against each other,
+and you should meet that here rather than at a security review:
 
 - *"Nothing leaves our machines"* — available, and already ahead of the
   control on the questions grep can also answer.
-- *"Ask the codebase a question in words"* — available, and it sends
-  every chunk to a hosted embedder once.
+- *"Ask the codebase a question in words"* — available, and at its best
+  it sends every chunk to a hosted embedder once.
 
-They are not the same configuration today. Choosing is the adoption
-decision; everything below is what each choice buys.
+Between them sits a third choice that did not exist when this page was
+first written: `[rewrite]` keeps the index on your machines and sends
+only the question, and it is worth more per byte than either. It does not
+close the gap — it narrows it. Choosing among the three is the adoption
+decision; everything below is what each buys.
 
 ## What a team gets
 
@@ -89,8 +92,26 @@ about each rather than a reassurance:
 
 The middle row is the one most teams miss: the index stays where it is
 and only the query and about forty candidate chunks per search go
-anywhere — never the repository. See
-[for-security.md](for-security.md) for what opens a socket and when.
+anywhere — never the repository.
+
+**And one option is cheaper than any of them.** `[rewrite]` sends the
+question a developer typed and no code at all. It is quoted apart from
+the table rather than rescaled into it, because it was measured on a
+different corpus: on 355 harvested questions it takes the fully local
+configuration from 138 answers to 158 (p = 0.0055) and the hosted one
+from 192 to 217 (p = 0.0002). The largest measured gain per byte sent, by
+a wide margin, and the only one that can be pointed at a model inside
+your own network and keep the whole promise.
+
+Two things a security review will ask, and should hear first. The
+question itself can be sensitive — *"why does the Acme Bank
+reconciliation job drop rows"* names a client — so this is less than the
+rows above and not nothing. And a small model will not do: three billion
+parameters measured worse than leaving the stage off and seven was
+break-even, because the gain is the model knowing what code is usually
+called.
+
+See [for-security.md](for-security.md) for what opens a socket and when.
 
 If you have hardware and a closed network, the same argument points at
 running a larger model on your own infrastructure. That is supported and
@@ -125,7 +146,8 @@ otherwise from us should distrust the rest.
 **Plain English does not work on the default model.** 1 of 42, against 21
 with a hosted embedder and reranker. The limit is the model, measured
 four ways: no available local model beats the one that ships, and the two
-trained on code did worse. This is a configuration away, not a rewrite —
+trained on code did worse. `[rewrite]` narrows the gap without sending
+code, at the price of a model call per search, but does not close it. This is a configuration away, not a rewrite —
 but it is not what `wsindex init` gives you.
 
 **It is not finished software, though it is less unfinished than the
