@@ -54,7 +54,7 @@ server = [
 ]
 shell = ["prompt-toolkit>=3.0,<4"]
 # `pydantic` likewise: `mcp_server.py` builds its tool schemas with it.
-mcp = ["mcp>=1.2,<2", "pydantic>=2.0,<3"]
+mcp = ["mcp>=1.2,<3", "pydantic>=2.0,<3"]
 # Links in Postgres, for a workspace whose index is shared. SQLite stays
 # the default and needs nothing.
 postgres = ["psycopg[binary]>=3.2,<4"]
