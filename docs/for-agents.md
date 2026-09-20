@@ -59,9 +59,14 @@ truth — does the returned text contain the lines the fix changed:
 | k = 20         |          **92** |         **57** |                 956 / 509 |
 | k = 30         |              98 |             66 |               1 371 / 720 |
 
-Which is why `k` defaults to **20** here and to 10 in the CLI: the CLI's
-caller can open the file. Past twenty the hosted model buys an answer per
-69 lines of context where the step to twenty bought one per 24.
+Which is why `k` defaults to **20** here. Past twenty the hosted model
+buys an answer per 69 lines of context where the step to twenty bought
+one per 24.
+
+The CLI settled on twenty as well, separately and for a different
+reason — a person's cost is rows on a terminal, not context — so the two
+agreeing is a coincidence rather than a rule, and neither should be
+changed because the other was.
 
 Returning *more* around each hit instead — the enclosing neighbourhood,
 which the server can do since it has the file even when the caller does

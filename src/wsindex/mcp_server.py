@@ -30,8 +30,9 @@ itself is not the part it is short of.
 
 So the caller these tools are for is the one that cannot open a file —
 an agent with no filesystem and no git, for which this is the only way
-in. That is why `k` defaults higher here than in the CLI, and why the
-reply carries `unsearched`: both are for a caller that cannot check.
+in. That is why the reply carries `unsearched`, and why `k` was chosen
+against a different cost here than in the CLI: context rather than rows
+on a terminal. The two arrived at the same twenty by separate roads.
 """
 
 from __future__ import annotations
@@ -83,10 +84,12 @@ def build(pipeline: Pipeline | None = None) -> FastMCP:
     @server.tool()
     def search(
         query: Annotated[str, Field(description="What to look for, in natural language")],
-        # Twenty, where the CLI's is ten, and the difference is the
-        # caller. A person reads `file:line` and opens the file; this
-        # caller may have no file to open, and then the reply is the
-        # whole answer. Asked on 135 questions with line-level truth —
+        # Twenty, and the CLI is twenty too — arrived at separately and
+        # for different reasons, which is worth knowing before somebody
+        # ties them together. A person reads `file:line` and opens the
+        # file, and their cost is rows on a terminal; this caller may
+        # have no file to open, so the reply is the whole answer and its
+        # cost is context. Asked on 135 questions with line-level truth —
         # does what came back *contain* the lines the fix changed —
         # against the median lines of text a reply carries:
         #
