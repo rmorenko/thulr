@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import re
 import tomllib
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -187,28 +188,47 @@ def read_manifests(root: Path) -> Manifest:
         a repository with no manifest is normal, not an error.
     """
     found = Manifest()
-    for depth in range(DEPTH + 1):
-        for path in root.glob("/".join(["*"] * depth) if depth else "*"):
-            if not path.is_file() or _SKIP & set(path.parts):
-                continue
-            reader = _BY_NAME.get(path.name.lower())
-            text = None
-            if reader is not None:
-                text = _read(path)
-                if text is not None:
-                    reader(text, found)
-                continue
-            suffix = path.suffix.lower()
-            if suffix not in _BY_SUFFIX:
-                continue
-            text = _read(path)
-            if text is None:
-                continue
-            if suffix == ".csproj":
-                _csproj(path, text, found)
-            else:
-                _ruby(text, found)
+    for path in _candidates(root):
+        _read_one(path, found)
     # A repository never depends on itself, whatever a monorepo's
     # packages say about each other.
     found.depends.difference_update(found.provides)
     return found
+
+
+def _candidates(root: Path) -> Iterator[Path]:
+    """Files shallow enough to be a manifest, in depth order.
+
+    Breadth rather than `rglob`: a manifest lives at the top of a
+    package, and walking a whole monorepo to find one at depth nine
+    costs far more than it ever returns.
+    """
+    for depth in range(DEPTH + 1):
+        for path in root.glob("/".join(["*"] * depth) if depth else "*"):
+            if path.is_file() and not _SKIP & set(path.parts):
+                yield path
+
+
+def _read_one(path: Path, found: Manifest) -> None:
+    """Add one file's declarations, if it is a manifest at all.
+
+    Named readers win over suffix ones: `package.json` is matched by
+    name and never reaches the suffix table, which is what keeps a
+    `.json` fixture somewhere in the tree from being read as a manifest.
+    """
+    reader = _BY_NAME.get(path.name.lower())
+    if reader is not None:
+        text = _read(path)
+        if text is not None:
+            reader(text, found)
+        return
+    suffix = path.suffix.lower()
+    if suffix not in _BY_SUFFIX:
+        return
+    text = _read(path)
+    if text is None:
+        return
+    if suffix == ".csproj":
+        _csproj(path, text, found)
+    else:
+        _ruby(text, found)

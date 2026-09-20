@@ -92,6 +92,7 @@ dev = [
   "taplo>=0.9,<1",
   "yamlfix>=1.19,<2",
   "poethepoet>=0.38,<1",
+  "complexipy>=4.0,<5",
   "pyarrow-stubs>=20.0.0.20260819",
   # Dev only, and only to check one thing: that the generated
   # `wsindex.schema.json` is a valid schema and accepts what the config
@@ -201,6 +202,10 @@ cmd = "python -c \"import json;from pathlib import Path;from wsindex.config.json
 [tool.poe.tasks.lint]
 help = "Run linter (ruff check)"
 cmd = "ruff check ."
+
+[tool.poe.tasks.complexity]
+help = "Cognitive complexity: fail any function over the default 15"
+cmd = "complexipy src/wsindex"
 
 [tool.poe.tasks.spell]
 help = "Spell check (codespell)"

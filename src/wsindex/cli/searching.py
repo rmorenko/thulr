@@ -10,7 +10,7 @@ from wsindex.cli.composition import (
     config_or_default,
     require_config_file,
 )
-from wsindex.links import KIND_LABELS, OCCURRENCE_ORDER, LinkKind
+from wsindex.links import KIND_LABELS, OCCURRENCE_ORDER, Edge, LinkKind
 from wsindex.model import Kind, SearchFilter
 from wsindex.pipeline import Authorship
 from wsindex.ui import render_hits
@@ -114,34 +114,40 @@ def refs(name: str) -> None:
     typer.echo(name)
     for kind, label in KIND_LABELS.items():
         group = [edge for edge in edges if edge.kind is kind]
-        if not group:
-            continue
-        # The spelling that was asked for first, then calls before type
-        # references before comments, which is what somebody asking
-        # "where is this used" means by the question. Edges with nothing
-        # to say about it keep the file order they were read in.
-        group.sort(
-            key=lambda edge: (
-                edge.name != name,
-                OCCURRENCE_ORDER[edge.via] if edge.via else 0,
-            )
-        )
-        typer.echo(f"  {label}:")
-        for edge in group:
-            suffix = f"  -> {edge.url}" if edge.url else ""
-            where = f"  ({edge.via})" if edge.via else ""
-            # A hit found under a different spelling says so. Asking for
-            # `max_retries` and being shown `MaxRetries` without being
-            # told is the search quietly answering a question that was
-            # not the one asked.
-            spelling = f"  [{edge.name}]" if edge.name != name else ""
-            typer.echo(f"    {edge.repo}/{edge.path}:{edge.line}{where}{spelling}{suffix}")
+        if group:
+            _echo_group(label, group, asked=name)
     if any(edge.kind is LinkKind.READS_KEY for edge in edges) and not any(
         edge.kind is LinkKind.DECLARES for edge in edges
     ):
         # The drift report, narrowed to one name. Worth saying here too:
         # someone asking about a port is exactly who needs to know.
         typer.echo("  (nothing declares it — code and configuration have drifted)")
+
+
+def _echo_group(label: str, group: list[Edge], *, asked: str) -> None:
+    """One relation's edges, in the order somebody asking would want.
+
+    The spelling that was asked for first, then calls before type
+    references before comments — which is most of what resolving a name
+    to a definition would have bought, at the price of a regular
+    expression. Edges with nothing to say about it keep the file order
+    they were read in.
+    """
+    group.sort(
+        key=lambda edge: (
+            edge.name != asked,
+            OCCURRENCE_ORDER[edge.via] if edge.via else 0,
+        )
+    )
+    typer.echo(f"  {label}:")
+    for edge in group:
+        suffix = f"  -> {edge.url}" if edge.url else ""
+        where = f"  ({edge.via})" if edge.via else ""
+        # A hit found under a different spelling says so. Asking for
+        # `max_retries` and being shown `MaxRetries` without being told
+        # is the search quietly answering a question that was not asked.
+        spelling = f"  [{edge.name}]" if edge.name != asked else ""
+        typer.echo(f"    {edge.repo}/{edge.path}:{edge.line}{where}{spelling}{suffix}")
 
 
 def why(target: str) -> None:

@@ -81,6 +81,42 @@ def _extend_back(siblings: list[Node], *, index: int, start_line: int) -> int:
     return start_line
 
 
+def _free_function(children: list[Node], *, index: int, covered: list[bool]) -> list[Span]:
+    """A C function standing outside any class, with its preamble."""
+    child = children[index]
+    name = _function_name(child)
+    if name is None:
+        return []
+    start, end = line_span(child)
+    start = _extend_back(children, index=index, start_line=start)
+    mark_covered(covered, start=start, end=end)
+    return [Span(start_line=start, end_line=end, symbol=name, node_type=child.type)]
+
+
+def _members_of(child: Node, *, owner: str, covered: list[bool]) -> list[Span]:
+    """Every method of one interface or implementation, qualified by it."""
+    found: list[Span] = []
+    members = child.named_children
+    for position, member in enumerate(members):
+        if member.type not in _MEMBERS:
+            continue
+        name = _member_name(member)
+        if name is None:
+            continue
+        start, end = line_span(member)
+        start = _extend_back(members, index=position, start_line=start)
+        mark_covered(covered, start=start, end=end)
+        found.append(
+            Span(
+                start_line=start,
+                end_line=end,
+                symbol=f"{owner}.{name}",
+                node_type=member.type,
+            )
+        )
+    return found
+
+
 def spans(root: Node, lines: list[str], covered: list[bool]) -> list[Span]:
     """Claim classes as their methods, and free functions whole.
 
@@ -98,37 +134,14 @@ def spans(root: Node, lines: list[str], covered: list[bool]) -> list[Span]:
     children = root.named_children
     for index, child in enumerate(children):
         if child.type == "function_definition":
-            name = _function_name(child)
-            if name is None:
-                continue
-            start, end = line_span(child)
-            start = _extend_back(children, index=index, start_line=start)
-            mark_covered(covered, start=start, end=end)
-            found.append(Span(start_line=start, end_line=end, symbol=name, node_type=child.type))
+            found += _free_function(children, index=index, covered=covered)
             continue
         if child.type not in _TYPES:
             continue
         owner = _first_identifier(child)
         if owner is None:
             continue  # error recovery: let the gap pass take the lines
-        members = child.named_children
-        for position, member in enumerate(members):
-            if member.type not in _MEMBERS:
-                continue
-            name = _member_name(member)
-            if name is None:
-                continue
-            start, end = line_span(member)
-            start = _extend_back(members, index=position, start_line=start)
-            mark_covered(covered, start=start, end=end)
-            found.append(
-                Span(
-                    start_line=start,
-                    end_line=end,
-                    symbol=f"{owner}.{name}",
-                    node_type=member.type,
-                )
-            )
+        found += _members_of(child, owner=owner, covered=covered)
         start, end = line_span(child)
         found += gap_spans(
             lines, covered=covered, start=start, end=end, symbol=owner, node_type=child.type

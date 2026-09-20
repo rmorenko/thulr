@@ -229,28 +229,33 @@ def source_prefix(paths: Iterable[str]) -> str:
     several top-level directories has nothing in common, gets `""`, and
     is read whole — which is right, because that *is* its shape.
     """
-    kept: list[str] = []
-    for path in paths:
-        parts = PurePosixPath(path).parts
-        if not parts or parts[0] in NOT_THE_SUBJECT_AT_THE_TOP:
-            continue
-        # Directories only, never the filename: a module honestly called
-        # `spec.py` is not a test directory.
-        if any(part in NOT_THE_SUBJECT for part in parts[:-1]):
-            continue
-        kept.append(path)
+    kept = [path for path in paths if _about_the_subject(path)]
     if not kept:
         return ""
     common = PurePosixPath(kept[0]).parts[:-1]
     for path in kept[1:]:
-        parts = PurePosixPath(path).parts[:-1]
-        shared = 0
-        while shared < min(len(common), len(parts)) and common[shared] == parts[shared]:
-            shared += 1
-        common = common[:shared]
+        common = _shared_head(common, PurePosixPath(path).parts[:-1])
         if not common:
             return ""
     return "/".join(common) + "/" if common else ""
+
+
+def _about_the_subject(path: str) -> bool:
+    """Whether a path is the kind of thing a repository is *about*."""
+    parts = PurePosixPath(path).parts
+    if not parts or parts[0] in NOT_THE_SUBJECT_AT_THE_TOP:
+        return False
+    # Directories only, never the filename: a module honestly called
+    # `spec.py` is not a test directory.
+    return not any(part in NOT_THE_SUBJECT for part in parts[:-1])
+
+
+def _shared_head(one: tuple[str, ...], other: tuple[str, ...]) -> tuple[str, ...]:
+    """The directories two paths agree on, from the top."""
+    shared = 0
+    while shared < min(len(one), len(other)) and one[shared] == other[shared]:
+        shared += 1
+    return one[:shared]
 
 
 def package_of(path: str, *, depth: int) -> str:

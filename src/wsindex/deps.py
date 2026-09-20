@@ -30,6 +30,7 @@ could ask, because both halves have to exist before they can disagree.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from wsindex.links import LinkKind, LinkStore
@@ -90,6 +91,51 @@ class Report:
     packages: int = 0
 
 
+def _sort_rows(
+    rows: Iterable[tuple[LinkKind, str, str | None, str]], *, repos: list[str] | None
+) -> tuple[
+    dict[str, set[str]],
+    dict[str, set[str]],
+    dict[str, set[str]],
+    dict[str, set[str]],
+    dict[str, str],
+]:
+    """Five indexes over the link rows, built in one pass.
+
+    Lifted out of `analyse` because it is the only part that touches raw
+    rows: everything after it works on these five, and a reader chasing
+    "where does `uses` come from" should find one place rather than a
+    branch in the middle of a longer function.
+
+    Returns:
+        What each package is provided by, what each repo declares it
+        needs, which repo anchors each normalised name, which repos
+        merely mention it, and the spelling somebody actually typed —
+        normalised keys join, but a reader needs the original.
+    """
+    wanted = set(repos) if repos else None
+    provides: dict[str, set[str]] = defaultdict(set)
+    needs: dict[str, set[str]] = defaultdict(set)
+    anchors: dict[str, set[str]] = defaultdict(set)
+    uses: dict[str, set[str]] = defaultdict(set)
+    spelled: dict[str, str] = {}
+    for kind, name, norm, repo in rows:
+        if wanted is not None and repo not in wanted:
+            continue
+        if kind is LinkKind.PROVIDES:
+            provides[name].add(repo)
+        elif kind is LinkKind.DEPENDS_ON:
+            needs[repo].add(name)
+        elif not norm:
+            continue
+        elif kind is LinkKind.MENTIONS:
+            uses[norm].add(repo)
+        else:
+            anchors[norm].add(repo)
+            spelled.setdefault(norm, name)
+    return provides, needs, anchors, uses, spelled
+
+
 def analyse(links: LinkStore, *, repos: list[str] | None = None) -> Report:
     """Compare what the manifests declare against what the code names.
 
@@ -109,27 +155,7 @@ def analyse(links: LinkStore, *, repos: list[str] | None = None) -> Report:
             LinkKind.MENTIONS,
         )
     )
-    wanted = set(repos) if repos else None
-    provides: dict[str, set[str]] = defaultdict(set)
-    needs: dict[str, set[str]] = defaultdict(set)
-    anchors: dict[str, set[str]] = defaultdict(set)
-    uses: dict[str, set[str]] = defaultdict(set)
-    # Normalised keys join; a reader needs the spelling somebody typed.
-    spelled: dict[str, str] = {}
-    for kind, name, norm, repo in rows:
-        if wanted is not None and repo not in wanted:
-            continue
-        if kind is LinkKind.PROVIDES:
-            provides[name].add(repo)
-        elif kind is LinkKind.DEPENDS_ON:
-            needs[repo].add(name)
-        elif not norm:
-            continue
-        elif kind is LinkKind.MENTIONS:
-            uses[norm].add(repo)
-        else:
-            anchors[norm].add(repo)
-            spelled.setdefault(norm, name)
+    provides, needs, anchors, uses, spelled = _sort_rows(rows, repos=repos)
 
     declared: dict[str, set[str]] = defaultdict(set)
     for repo, required in needs.items():

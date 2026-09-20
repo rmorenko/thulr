@@ -1,8 +1,10 @@
 """Commands that describe the workspace: create it, add to it, look at it."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
@@ -18,6 +20,10 @@ from wsindex.ingest import SKIP_REASONS
 from wsindex.ingest.git_state import STATE_FILE, IndexState
 from wsindex.paths import user_config_file, workspace_config_path
 from wsindex.stats import SearchLog
+
+if TYPE_CHECKING:  # pragma: no cover - annotations only
+    from wsindex.domains import Domains
+    from wsindex.pipeline import Pipeline
 
 
 def init(
@@ -338,25 +344,7 @@ def domains(
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     if found.files < 6:
-        # Three different problems used to share one sentence, and the
-        # sentence named the one that was usually not it: across the
-        # field trial 151 of 193 runs were told to "Index first" with a
-        # complete index beside them. What was wrong was the prefix,
-        # which defaulted to this project's own layout.
-        where = f"under {found.prefix!r}" if found.prefix else "in this repo"
-        if found.files:
-            typer.echo(f"{found.files} source file(s) {where} — too few to have domains.")
-        elif prefix is not None:
-            # The prefix was typed, so the prefix is the suspect. Saying
-            # what the repo would have chosen turns this into one step.
-            derived = analyse(pipeline, repo=chosen).prefix
-            hint = f"; this repo keeps its code under {derived!r}" if derived else ""
-            typer.echo(f"no indexed code under {prefix!r}{hint} — drop --prefix to derive it")
-        else:
-            typer.echo(
-                f"no indexed code in {chosen} — `wsindex index` if it is new, "
-                "or `wsindex explain <path>` to see which rule left its files out"
-            )
+        _too_few(found, pipeline=pipeline, chosen=chosen, prefix=prefix)
         return
     where = f" under {found.prefix!r}" if found.prefix else ""
     typer.echo(f"{found.files} files in {len(found.packages)} packages{where}")
@@ -365,6 +353,39 @@ def domains(
         f"agreement {found.agreement:.0%} (meaning recovers the layout; "
         f"{found.baseline:.0%} would be chance)"
     )
+    _echo_exceptions(found)
+
+
+def _too_few(found: Domains, *, pipeline: Pipeline, chosen: str, prefix: str | None) -> None:
+    """Why there are no domains, naming the likely cause rather than one.
+
+    Three different problems used to share one sentence, and the sentence
+    named the one that was usually not it: across the field trial 151 of
+    193 runs were told to "Index first" with a complete index beside
+    them. What was wrong was the prefix, which defaulted to this
+    project's own layout.
+    """
+    from wsindex.domains import analyse
+
+    where = f"under {found.prefix!r}" if found.prefix else "in this repo"
+    if found.files:
+        typer.echo(f"{found.files} source file(s) {where} — too few to have domains.")
+    elif prefix is not None:
+        # The prefix was typed, so the prefix is the suspect. Saying what
+        # the repo would have chosen turns this into one step.
+        derived = analyse(pipeline, repo=chosen).prefix
+        hint = f"; this repo keeps its code under {derived!r}" if derived else ""
+        typer.echo(f"no indexed code under {prefix!r}{hint} — drop --prefix to derive it")
+    else:
+        typer.echo(
+            f"no indexed code in {chosen} — `wsindex index` if it is new, "
+            "or `wsindex explain <path>` to see which rule left its files out"
+        )
+
+
+def _echo_exceptions(found: Domains) -> None:
+    """The two lists worth reading: files filed away from their subject,
+    and pairs that change together across a package boundary."""
     if found.strangers:
         typer.echo("\nfiled away from their subject:")
         for stranger in found.strangers:

@@ -115,6 +115,70 @@ class LanguageSpec:
         return self.grammar is not None and self.sections is not None
 
 
+def _well_formed(spec: LanguageSpec) -> None:
+    """Everything wrong with a spec on its own terms.
+
+    Split from `register` because the two kinds of rejection are
+    different questions: this asks whether the spec could ever work, and
+    `LanguageRegistry._unclaimed` asks whether it works *here*, beside
+    the languages already registered.
+
+    Raises:
+        ValueError: The spec is malformed.
+    """
+    _selectable(spec)
+    _chunkable(spec)
+
+
+def _selectable(spec: LanguageSpec) -> None:
+    """Whether anything could ever route a file to this language.
+
+    Raises:
+        ValueError: It has no name, matches no files, or spells a suffix
+            in a way the walker will never produce.
+    """
+    if not spec.name:
+        raise ValueError("language spec needs a name")
+    if not spec.suffixes and not spec.filenames:
+        raise ValueError(f"{spec.name!r} matches no files: give it suffixes or filenames")
+    for suffix in spec.suffixes:
+        if not suffix.startswith(".") or suffix != suffix.lower():
+            raise ValueError(
+                f"{spec.name!r}: suffix {suffix!r} must be lowercase and start with '.'"
+            )
+
+
+def _chunkable(spec: LanguageSpec) -> None:
+    """Whether the parser, extractor and kind can work together.
+
+    Each rule here describes a spec that would otherwise fail silently —
+    a grammar nobody reads, an extractor with no tree — and silence
+    surfaces much later as "why is my file not indexed?".
+
+    Raises:
+        ValueError: The combination cannot run.
+    """
+    if spec.spans is not None and spec.sections is not None:
+        # A container's parts are chunked by their own languages; an
+        # extractor on top of that would claim the same lines twice.
+        raise ValueError(
+            f"{spec.name!r}: give `spans` or `sections`, not both — a container "
+            f"file is split, and its parts are chunked by their own languages"
+        )
+    if spec.sections is not None and spec.grammar is None:
+        raise ValueError(f"{spec.name!r}: `sections` needs a `grammar` to split with")
+    if spec.sections is None and (spec.grammar is None) != (spec.spans is None):
+        # One without the other can never run: an extractor needs a tree
+        # to read, and a tree nobody reads produces no chunks.
+        raise ValueError(f"{spec.name!r}: `grammar` and `spans` go together — give both or neither")
+    if spec.kind is Kind.DOC and spec.is_ast:
+        # `chunk_file` sends every DOC file to the text chunker, so a
+        # grammar here would be quietly ignored. Refusing beats that.
+        raise ValueError(
+            f"{spec.name!r}: DOC languages are chunked as text; a grammar would be unused"
+        )
+
+
 class LanguageRegistry:
     """The languages this process knows, and the tables derived from them.
 
@@ -170,6 +234,23 @@ class LanguageRegistry:
 
             load_plugins(self)
 
+    def _unclaimed(self, spec: LanguageSpec) -> None:
+        """Whether this spec collides with one already here.
+
+        Raises:
+            ValueError: The name, a suffix or a filename is taken.
+        """
+        if spec.name in self._specs:
+            raise ValueError(f"language {spec.name!r} is already registered")
+        for suffix in spec.suffixes:
+            owner = self._owner_of(suffix=suffix)
+            if owner is not None:
+                raise ValueError(f"suffix {suffix!r} is already claimed by {owner!r}")
+        for filename in spec.filenames:
+            owner = self._owner_of(filename=filename)
+            if owner is not None:
+                raise ValueError(f"filename {filename!r} is already claimed by {owner!r}")
+
     def register(self, spec: LanguageSpec) -> None:
         """Add a language, rejecting anything that could not work.
 
@@ -185,46 +266,8 @@ class LanguageRegistry:
             ValueError: The spec is malformed, or it collides with a
                 language already registered.
         """
-        if not spec.name:
-            raise ValueError("language spec needs a name")
-        if not spec.suffixes and not spec.filenames:
-            raise ValueError(f"{spec.name!r} matches no files: give it suffixes or filenames")
-        for suffix in spec.suffixes:
-            if not suffix.startswith(".") or suffix != suffix.lower():
-                raise ValueError(
-                    f"{spec.name!r}: suffix {suffix!r} must be lowercase and start with '.'"
-                )
-        if spec.spans is not None and spec.sections is not None:
-            # A container's parts are chunked by their own languages; an
-            # extractor on top of that would claim the same lines twice.
-            raise ValueError(
-                f"{spec.name!r}: give `spans` or `sections`, not both — a container "
-                f"file is split, and its parts are chunked by their own languages"
-            )
-        if spec.sections is not None and spec.grammar is None:
-            raise ValueError(f"{spec.name!r}: `sections` needs a `grammar` to split with")
-        if spec.sections is None and (spec.grammar is None) != (spec.spans is None):
-            # One without the other can never run: an extractor needs a
-            # tree to read, and a tree nobody reads produces no chunks.
-            raise ValueError(
-                f"{spec.name!r}: `grammar` and `spans` go together — give both or neither"
-            )
-        if spec.kind is Kind.DOC and spec.is_ast:
-            # `chunk_file` sends every DOC file to the text chunker, so a
-            # grammar here would be quietly ignored. Refusing beats that.
-            raise ValueError(
-                f"{spec.name!r}: DOC languages are chunked as text; a grammar would be unused"
-            )
-        if spec.name in self._specs:
-            raise ValueError(f"language {spec.name!r} is already registered")
-        for suffix in spec.suffixes:
-            owner = self._owner_of(suffix=suffix)
-            if owner is not None:
-                raise ValueError(f"suffix {suffix!r} is already claimed by {owner!r}")
-        for filename in spec.filenames:
-            owner = self._owner_of(filename=filename)
-            if owner is not None:
-                raise ValueError(f"filename {filename!r} is already claimed by {owner!r}")
+        _well_formed(spec)
+        self._unclaimed(spec)
         self._specs[spec.name] = spec
         # Anything derived from the specs is now stale.
         self._parsers = None

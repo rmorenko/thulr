@@ -203,6 +203,41 @@ def inspect_file(
     return found if isinstance(found, WalkedFile) else None
 
 
+def _refused(abs_path: Path) -> Skip | None:
+    """What the filesystem says about this path, or None if it is fine.
+
+    Cheapest first and each answer separate, because `explain` reports
+    the rule by name and a reader sent to the wrong one looks in the
+    wrong place.
+    """
+    if abs_path.is_symlink():
+        # A symlink is a name, not a file. `is_file()` follows it, so
+        # a repository containing `notes.md -> ~/.ssh/id_rsa` had the
+        # key's *contents* indexed — measured, and git tracks
+        # symlinks, so cloning someone's repository let them choose
+        # which of your files went into your index. A link whose
+        # target is inside the repo is no better: the target is
+        # walked on its own, and indexing it twice would put one text
+        # at two paths.
+        return Skip.SYMLINK
+    if not abs_path.exists():
+        # Said apart from NOT_A_FILE because the two send a reader
+        # to different places. `explain` is usually asked about a
+        # path somebody typed, and "not a regular file" about a
+        # path with nothing at it sends them looking for a symlink
+        # or a permission problem instead of a typo. A file deleted
+        # between git listing it and this call lands here too, which
+        # is also nobody's problem and also not a file *type*.
+        return Skip.MISSING
+    if not abs_path.is_file():
+        return Skip.NOT_A_FILE
+    if abs_path.stat().st_size > MAX_FILE_SIZE:
+        return Skip.TOO_LARGE
+    if is_binary(abs_path):
+        return Skip.BINARY
+    return None
+
+
 def examine(
     root: Path,
     rel_path: str,
@@ -239,31 +274,9 @@ def examine(
     if found is None:
         return Skip.UNKNOWN_SUFFIX
     try:
-        if abs_path.is_symlink():
-            # A symlink is a name, not a file. `is_file()` follows it, so
-            # a repository containing `notes.md -> ~/.ssh/id_rsa` had the
-            # key's *contents* indexed — measured, and git tracks
-            # symlinks, so cloning someone's repository let them choose
-            # which of your files went into your index. A link whose
-            # target is inside the repo is no better: the target is
-            # walked on its own, and indexing it twice would put one text
-            # at two paths.
-            return Skip.SYMLINK
-        if not abs_path.exists():
-            # Said apart from NOT_A_FILE because the two send a reader
-            # to different places. `explain` is usually asked about a
-            # path somebody typed, and "not a regular file" about a
-            # path with nothing at it sends them looking for a symlink
-            # or a permission problem instead of a typo. A file deleted
-            # between git listing it and this call lands here too, which
-            # is also nobody's problem and also not a file *type*.
-            return Skip.MISSING
-        if not abs_path.is_file():
-            return Skip.NOT_A_FILE
-        if abs_path.stat().st_size > MAX_FILE_SIZE:
-            return Skip.TOO_LARGE
-        if is_binary(abs_path):
-            return Skip.BINARY
+        refused = _refused(abs_path)
+        if refused is not None:
+            return refused
     except OSError:
         # Not folded into NOT_A_FILE, which is what this used to be. A
         # file git tracks and the filesystem refuses to open *should*

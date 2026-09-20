@@ -273,6 +273,39 @@ all. The CLI says the same things in its own words to a person who is
 watching; a log is for the reader who was not."""
 
 
+def _mentions_in_hit(
+    name: str, hit: Hit, *, repo: str, seen: set[tuple[str, str, int]]
+) -> list[Edge]:
+    """Edges for one lexical hit, minus the lines already anchored.
+
+    `seen` is read *and written* here, which is why it is a parameter
+    rather than a return value: a name can appear twice in one chunk and
+    once again in the next, and the second opinion must not report a
+    line the link store already reported.
+    """
+    if hit.native_id is None:
+        return []
+    out: list[Edge] = []
+    for line, via in occurrences_of(hit.text, name, start_line=hit.start_line):
+        if (repo, hit.path, line) in seen:
+            continue
+        seen.add((repo, hit.path, line))
+        out.append(
+            Edge(
+                kind=LinkKind.MENTIONS,
+                name=name,
+                line=line,
+                chunk_id=hit.native_id,
+                dst_chunk_id=None,
+                url=None,
+                via=via,
+                repo=repo,
+                path=hit.path,
+            )
+        )
+    return out
+
+
 @dataclass(frozen=True, kw_only=True)
 class Pipeline:
     """The wired system: a store, plus whatever the current Config says.
@@ -372,42 +405,7 @@ class Pipeline:
             # callable rather than an event system: one caller, one fact.
             if progress is not None:
                 progress(repo.id)
-            root = Path(repo.path)
-            if not root.is_dir():
-                log.warning("skipping %s: %s does not exist", repo.id, root)
-                tally.missing.append(repo.id)
-                continue
-            self.store.create_dataset(dataset_name=repo.id, metric=config.metric)
-            diff, dirty = self._plan(repo, root=root, state=state)
-            if diff.full:
-                reason = _why_full(repo, state=state, dirty=dirty)
-                log.info("full pass for %s: %s", repo.id, reason)
-                tally.full.append((repo.id, reason))
-            if diff.full or diff.changed or diff.deleted:
-                totals = self._index_repo(repo, root=root, diff=diff, config=config)
-                tally.add(repo.id, totals)
-                log.info(
-                    "indexed %s: %d files, %d chunks, %d written, %d deleted",
-                    repo.id,
-                    totals.files,
-                    totals.chunks,
-                    totals.written,
-                    totals.deleted,
-                )
-                for path in totals.unreadable:
-                    log.warning("could not read %s/%s", repo.id, path)
-            # Nothing moved and nothing to reconcile: no read, no chunking,
-            # no store round trip. That is the whole point of the step.
-            if not dirty:
-                # A clean tree is exactly `diff.head`, whether we got here
-                # by a delta or by re-reading everything — so a first full
-                # pass is what switches this repo onto the fast path. A
-                # dirty tree records nothing: we indexed content that no
-                # commit describes, and claiming HEAD would make the next
-                # run skip those same changes forever.
-                state = state.with_commit(repo.id, diff.head, markup=repo.markup_key)
-                state.save(self.state_dir)
-            self._manifest_links(repo, root=root)
+            state = self._pass_over(repo, state=state, tally=tally, config=config)
         self._prune_links(defined_before, written=tally.chunks > 0)
         # Once, after every repo, for the same reason the link prune is
         # here: the index covers the whole table and rebuilding it per
@@ -432,6 +430,72 @@ class Pipeline:
             tally.chunks,
         )
         return tally.report(seconds=round(time.monotonic() - started, 2))
+
+    def _pass_over(
+        self, repo: Repository, *, state: IndexState, tally: _Tally, config: Config
+    ) -> IndexState:
+        """One repository's turn, and the state it leaves behind.
+
+        Lifted out of `index` whole rather than cut across: everything
+        here is about *this* repo, and everything left behind in `index`
+        is about the workspace. The returned state is the argument for
+        the method existing — a commit is recorded per repo, right after
+        that repo's chunks are in the store, so a crash halfway through a
+        five-repo workspace costs the four that finished nothing.
+
+        Returns:
+            The state to carry into the next repo, updated only when this
+            one both indexed and was clean.
+        """
+        root = Path(repo.path)
+        if not root.is_dir():
+            log.warning("skipping %s: %s does not exist", repo.id, root)
+            tally.missing.append(repo.id)
+            return state
+        self.store.create_dataset(dataset_name=repo.id, metric=config.metric)
+        diff, dirty = self._plan(repo, root=root, state=state)
+        if diff.full:
+            reason = _why_full(repo, state=state, dirty=dirty)
+            log.info("full pass for %s: %s", repo.id, reason)
+            tally.full.append((repo.id, reason))
+        if diff.full or diff.changed or diff.deleted:
+            self._write_repo(repo, root=root, diff=diff, config=config, tally=tally)
+        # Nothing moved and nothing to reconcile: no read, no chunking,
+        # no store round trip. That is the whole point of the step.
+        if not dirty:
+            # A clean tree is exactly `diff.head`, whether we got here by
+            # a delta or by re-reading everything — so a first full pass
+            # is what switches this repo onto the fast path. A dirty tree
+            # records nothing: we indexed content that no commit
+            # describes, and claiming HEAD would make the next run skip
+            # those same changes forever.
+            state = state.with_commit(repo.id, diff.head, markup=repo.markup_key)
+            state.save(self.state_dir)
+        self._manifest_links(repo, root=root)
+        return state
+
+    def _write_repo(
+        self,
+        repo: Repository,
+        *,
+        root: Path,
+        diff: RepoDiff,
+        config: Config,
+        tally: _Tally,
+    ) -> None:
+        """Index one repo's changes and say what happened, at length."""
+        totals = self._index_repo(repo, root=root, diff=diff, config=config)
+        tally.add(repo.id, totals)
+        log.info(
+            "indexed %s: %d files, %d chunks, %d written, %d deleted",
+            repo.id,
+            totals.files,
+            totals.chunks,
+            totals.written,
+            totals.deleted,
+        )
+        for path in totals.unreadable:
+            log.warning("could not read %s/%s", repo.id, path)
 
     def _manifest_links(self, repo: Repository, *, root: Path) -> None:
         """Record what a repository publishes itself as and what it needs.
@@ -900,25 +964,7 @@ class Pipeline:
             except (AttributeError, ValueError):
                 continue  # a store without a text index, or a dataset with none
             for hit in hits:
-                if hit.native_id is None:
-                    continue
-                for line, via in occurrences_of(hit.text, name, start_line=hit.start_line):
-                    if (repo.id, hit.path, line) in seen:
-                        continue
-                    seen.add((repo.id, hit.path, line))
-                    found.append(
-                        Edge(
-                            kind=LinkKind.MENTIONS,
-                            name=name,
-                            line=line,
-                            chunk_id=hit.native_id,
-                            dst_chunk_id=None,
-                            url=None,
-                            via=via,
-                            repo=repo.id,
-                            path=hit.path,
-                        )
-                    )
+                found.extend(_mentions_in_hit(name, hit, repo=repo.id, seen=seen))
         return sorted(found, key=lambda edge: (edge.repo, edge.path, edge.line))
 
     def commit_message(self, repo: str, chunk_id: str) -> str | None:

@@ -53,6 +53,12 @@ repos:
         entry: uv run codespell
         language: system
         pass_filenames: false
+      - id: complexipy
+        name: complexipy
+        entry: uv run complexipy src/wsindex
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: mypy
         name: mypy
         entry: uv run mypy src tests

@@ -46,6 +46,9 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy src
 
+      - name: Cognitive complexity (complexipy, max 15 per function)
+        run: uv run complexipy src/wsindex
+
       - name: Tests + coverage (pytest-cov, fail under 90%)
         run: uv run pytest --cov --cov-report=term-missing
 

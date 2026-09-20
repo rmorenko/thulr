@@ -82,17 +82,27 @@ class SectionSplitter(Protocol):
 def _attribute(tag: Node, name: str) -> str | None:
     """Value of one attribute on a start tag, unquoted; None if absent."""
     for attribute in tag.named_children:
-        if attribute.type != "attribute":
-            continue
-        key = next((c for c in attribute.named_children if c.type == "attribute_name"), None)
-        if key is None or key.text is None or key.text.decode() != name:
-            continue
-        for child in attribute.named_children:
-            if child.type in ("quoted_attribute_value", "attribute_value"):
-                # `quoted_attribute_value` wraps the value in a child;
-                # `attribute_value` is the bare form.
-                inner = child.named_children[0] if child.named_children else child
-                return inner.text.decode() if inner.text is not None else None
+        if attribute.type == "attribute" and _named(attribute) == name:
+            return _value(attribute)
+    return None
+
+
+def _named(attribute: Node) -> str | None:
+    """The attribute's name, or None when the node has no readable one."""
+    key = next((c for c in attribute.named_children if c.type == "attribute_name"), None)
+    if key is None or key.text is None:
+        return None
+    return key.text.decode()
+
+
+def _value(attribute: Node) -> str | None:
+    """The attribute's value in either of the two shapes the grammar gives."""
+    for child in attribute.named_children:
+        if child.type in ("quoted_attribute_value", "attribute_value"):
+            # `quoted_attribute_value` wraps the value in a child;
+            # `attribute_value` is the bare form.
+            inner = child.named_children[0] if child.named_children else child
+            return inner.text.decode() if inner.text is not None else None
     return None
 
 

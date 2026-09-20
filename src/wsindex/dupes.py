@@ -251,6 +251,32 @@ def _code(
     return found
 
 
+def _proposed(
+    prints: dict[tuple[str, str], set[int]],
+) -> Counter[tuple[tuple[str, str], tuple[str, str]]]:
+    """Pairs worth scoring, from an inverted index over shingles.
+
+    This is what makes the whole thing finishable: only chunks sharing a
+    shingle are ever proposed, so nothing is compared against
+    everything. Shingles held by more than `COMMON_SHINGLE` chunks are
+    dropped first — they are boilerplate, they connect a repository to
+    itself, and keeping them restores the quadratic behaviour the index
+    exists to avoid.
+    """
+    postings: dict[int, list[tuple[str, str]]] = defaultdict(list)
+    for where, marks in prints.items():
+        for mark in marks:
+            postings[mark].append(where)
+    candidates: Counter[tuple[tuple[str, str], tuple[str, str]]] = Counter()
+    for holders in postings.values():
+        if len(holders) > COMMON_SHINGLE:
+            continue
+        for index, left in enumerate(holders):
+            for right in holders[index + 1 :]:
+                candidates[(left, right) if left < right else (right, left)] += 1
+    return candidates
+
+
 def _pairs(
     chunks: dict[tuple[str, str], tuple[str, str, tuple[int, int]]],
     prints: dict[tuple[str, str], set[int]],
@@ -266,17 +292,7 @@ def _pairs(
     boilerplate, they connect the whole repository to itself, and keeping
     them would restore the quadratic behaviour the index exists to avoid.
     """
-    postings: dict[int, list[tuple[str, str]]] = defaultdict(list)
-    for where, marks in prints.items():
-        for mark in marks:
-            postings[mark].append(where)
-    candidates: Counter[tuple[tuple[str, str], tuple[str, str]]] = Counter()
-    for holders in postings.values():
-        if len(holders) > COMMON_SHINGLE:
-            continue
-        for index, left in enumerate(holders):
-            for right in holders[index + 1 :]:
-                candidates[(left, right) if left < right else (right, left)] += 1
+    candidates = _proposed(prints)
     found: list[Pair] = []
     for (left, right), _ in candidates.items():
         if chunks[left][0] == chunks[right][0]:
